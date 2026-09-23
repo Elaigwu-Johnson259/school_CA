@@ -1,0 +1,26 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+
+# Uploads
+uploads/
+
+# Node
+node_modules/
+dist/
+
+# Build/cache files
+*.tsbuildinfo
+
+# OS/editor files
+.DS_Store
+.vscode/
