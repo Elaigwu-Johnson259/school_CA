@@ -147,5 +147,15 @@ report card/PDF generation, dashboards, audit logging, and full test
 coverage — comes in Phases 2 onward, one phase at a time, with a check-in
 after each.
 
-**Next up: Phase 2 — Database** (SQLAlchemy models, relationships,
-constraints, Alembic migrations, seed data).
+## Phase 2 — Database (complete)
+
+Added the full set of SQLAlchemy models (17 tables) covering schools,
+users, academic sessions/terms, classes/subjects, teachers/students and
+their assignments, the configurable assessment structure, scores, grading
+scales, calculated results, report cards, and audit logs — plus matching
+Pydantic schemas for the core entities, an Alembic migration that creates
+them all, and a test suite proving the relationships and tenant-scoped
+constraints work. See `backend/app/models/` and
+`backend/tests/test_models.py`.
+
+**Next up: Phase 3 — Authentication.**

@@ -14,9 +14,26 @@ from app.core.config import settings
 from app.core.database import Base
 
 # Import models here so Base.metadata is aware of every table before
-# autogenerate compares it against the database. Left empty until Phase 2
-# adds real models, e.g.:
-# from app.models import school, user, student  # noqa
+# autogenerate compares it against the database.
+from app.models import (  # noqa: F401
+    School,
+    User,
+    AcademicSession,
+    Term,
+    SchoolClass,
+    Subject,
+    ClassSubject,
+    Teacher,
+    Student,
+    TeacherAssignment,
+    StudentClass,
+    AssessmentType,
+    Score,
+    GradingScale,
+    Result,
+    ReportCard,
+    AuditLog,
+)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
