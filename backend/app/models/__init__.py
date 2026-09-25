@@ -5,6 +5,7 @@ this to detect tables for autogenerate).
 """
 from app.models.school import School
 from app.models.user import User
+from app.models.auth import RefreshToken
 from app.models.academic import AcademicSession, Term
 from app.models.academic_structure import SchoolClass, Subject, ClassSubject
 from app.models.people import Teacher, Student, TeacherAssignment, StudentClass
@@ -15,6 +16,7 @@ from app.models.audit import AuditLog
 __all__ = [
     "School",
     "User",
+    "RefreshToken",
     "AcademicSession",
     "Term",
     "SchoolClass",

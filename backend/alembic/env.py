@@ -18,6 +18,7 @@ from app.core.database import Base
 from app.models import (  # noqa: F401
     School,
     User,
+    RefreshToken,
     AcademicSession,
     Term,
     SchoolClass,

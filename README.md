@@ -159,3 +159,139 @@ constraints work. See `backend/app/models/` and
 `backend/tests/test_models.py`.
 
 **Next up: Phase 3 — Authentication.**
+
+## Phase 3 — Authentication & User Accounts (complete)
+
+### How authentication works
+
+- **Passwords** are hashed with bcrypt (via passlib) in
+  `app/core/security.py` — `hash_password()` / `verify_password()`.
+  Plain-text passwords are never stored, logged, or returned by the API.
+- **Access tokens** are short-lived JWTs (`ACCESS_TOKEN_EXPIRE_MINUTES`,
+  default 30 min), sent as `Authorization: Bearer <token>` on every
+  authenticated request. They're stateless — nothing to check in the DB —
+  which keeps normal request handling fast.
+- **Refresh tokens** are longer-lived JWTs (`REFRESH_TOKEN_EXPIRE_DAYS`,
+  default 7 days) used only to obtain a new access token. Each one is also
+  recorded in a new `refresh_tokens` table (by its JWT `jti` claim), which
+  is what makes logout/revocation possible — a stolen refresh token can be
+  cut off before it naturally expires, unlike a purely stateless token.
+- **`/api/auth/refresh`** checks the token's `type` claim is `"refresh"`
+  (an access token is rejected), looks up its `jti` in `refresh_tokens`,
+  and rejects it if it's missing, expired, or revoked.
+- **`/api/auth/logout`** marks the given refresh token's `jti` as revoked.
+  The paired access token is left to expire naturally (it's stateless by
+  design) — the frontend discards it immediately on logout regardless.
+- **`get_current_user()`** (`app/api/deps.py`) is the dependency every
+  protected endpoint uses: it validates the bearer token, checks it's an
+  access token, loads the user, and rejects inactive accounts.
+- **`require_roles(...)`** builds on `get_current_user()` for
+  role-restricted endpoints, e.g.
+  `Depends(require_roles(UserRole.SCHOOL_ADMIN, UserRole.TEACHER))`. No
+  endpoints use it yet — Phase 3 is authentication, not the endpoints that
+  will need it — but it's ready for later phases to use directly.
+- **Tenant awareness**: every access token carries the user's `school_id`
+  claim, and `/api/auth/me` returns it too. Actually *enforcing* that a
+  SCHOOL_ADMIN/TEACHER/STUDENT can only touch their own school's data is
+  Phase 4's job (tenant isolation middleware); Phase 3 just makes sure
+  that information is reliably available to build that on top of.
+
+### Why there's no public registration endpoint
+
+A public `POST /api/auth/register` would let anyone create an account —
+including, if not carefully restricted, a `SUPER_ADMIN`. Instead, Phase 3
+adds `auth_service.create_user()`, a plain function that hashes the
+password and inserts the user. It's not wired to any route yet. Later
+phases will call it from *protected* endpoints where the caller's
+authorization is already established — e.g. a `SUPER_ADMIN` creating a
+school + its first `SCHOOL_ADMIN` during school registration (Phase 5), or
+a `SCHOOL_ADMIN` creating teacher/student accounts (Phase 6).
+
+### Creating a development user to test with
+
+There's no seed data yet (that's Phase 2's seed-data task, still pending,
+and/or Phase 5+). Until then, create one by hand:
+
+```bash
+cd backend
+source venv/bin/activate
+alembic upgrade head
+python -c "
+from app.core.database import SessionLocal
+from app.services.auth_service import create_user
+from app.models.enums import UserRole
+
+db = SessionLocal()
+create_user(db, email='admin@example.com', password='ChangeMe123!', role=UserRole.SCHOOL_ADMIN)
+db.close()
+print('Created admin@example.com / ChangeMe123!')
+"
+```
+
+(A `SCHOOL_ADMIN` needs a real `school_id` in practice — pass
+`school_id=<id>` once you have a school row from Phase 2's models. For
+just testing the login flow, a `SUPER_ADMIN` with no `school_id` also
+works fine: `role=UserRole.SUPER_ADMIN`.)
+
+### Authentication endpoints
+
+| Method | Path | Auth required | Purpose |
+|---|---|---|---|
+| POST | `/api/auth/login` | No | Exchange email+password for an access + refresh token |
+| GET | `/api/auth/me` | Yes (access token) | Return the current user's id/email/role/school_id/is_active |
+| POST | `/api/auth/refresh` | No (refresh token in body) | Exchange a refresh token for a new access token |
+| POST | `/api/auth/logout` | No (refresh token in body) | Revoke a refresh token |
+
+### Frontend
+
+- `src/context/AuthContext.tsx` — holds the current user, exposes
+  `login()`/`logout()`, and re-checks `/api/auth/me` on page load if a
+  token is already stored.
+- `src/utils/tokenStorage.ts` — stores the access/refresh token pair in
+  `localStorage`. (Trade-off note: this is simpler than httpOnly cookies
+  but readable by page JS; fine for Phase 3, worth hardening later.)
+- `src/api/client.ts` — attaches the access token to every request, and
+  on a 401 tries one silent refresh-and-retry before giving up.
+- `src/routes/ProtectedRoute.tsx` — redirects to `/login` if there's no
+  authenticated user.
+- `src/pages/LoginPage.tsx` / `src/pages/DashboardPage.tsx` — a minimal
+  login form and a placeholder authenticated page (shows the user's
+  email/role, has a log-out button). Real dashboards come in a later
+  phase — this only proves login → protected page → logout works.
+
+Try it: run both servers (below), open http://localhost:5173, you'll be
+redirected to `/login`; sign in with a user you created above; you'll
+land on `/dashboard` showing your email and role; click "Log out" to
+return to `/login`.
+
+### Running it
+
+**Backend:**
+
+```bash
+cd backend
+source venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+**Frontend** (second terminal):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+**Tests:**
+
+```bash
+cd backend
+source venv/bin/activate
+pytest -v
+```
+
+**Next up: Phase 4 — Multi-Tenancy** (enforcing that a logged-in user can
+only ever read/write their own school's data, with tests proving
+cross-school access is impossible).
