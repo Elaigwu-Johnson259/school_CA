@@ -3,10 +3,12 @@ import { AuthProvider } from "@/context/AuthContext";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
 import { LoginPage } from "@/pages/LoginPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { RegisterSchoolComingSoonPage } from "@/pages/RegisterSchoolComingSoonPage";
 
 /**
- * Phase 3 routing: just enough to prove the auth flow end to end
- * (login → protected page → logout). The full app's routes (students,
+ * Routing so far: login → protected dashboard → logout, plus an honest
+ * "coming soon" placeholder for self-service school registration (the
+ * real flow is Phase 5 — see README). The full app's routes (students,
  * classes, results, ...) get added in later phases.
  */
 function App() {
@@ -14,6 +16,7 @@ function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register-school" element={<RegisterSchoolComingSoonPage />} />
         <Route
           path="/dashboard"
           element={

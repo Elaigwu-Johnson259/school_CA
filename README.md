@@ -295,3 +295,174 @@ pytest -v
 **Next up: Phase 4 — Multi-Tenancy** (enforcing that a logged-in user can
 only ever read/write their own school's data, with tests proving
 cross-school access is impossible).
+
+## Phase 4 — Multi-Tenancy & Tenant Isolation (complete)
+
+### The tenant model
+
+Every school-owned row (already true since Phase 2) carries a `school_id`.
+A `School` **is** a tenant. The rule from Phase 2/3 continues to hold:
+`SUPER_ADMIN.school_id` is `NULL` (platform-wide, no single home school);
+`SCHOOL_ADMIN`/`TEACHER`/`STUDENT` each belong to exactly one school.
+
+### Tenant-context mechanism (`backend/app/core/tenancy.py`)
+
+- **`get_current_school()`** — a FastAPI dependency that resolves the
+  logged-in user's own school from their trusted, DB-loaded `school_id`.
+  Rejects `SUPER_ADMIN` with `403`, since they have no single "home"
+  school by design.
+- **`require_school_user()`** — ensures the caller is school-bound (i.e.
+  not a `SUPER_ADMIN`), for endpoints that only make sense for one.
+- **`require_school_role(*roles)`** — combines a role check with the
+  "must belong to a school" check in one dependency.
+- **`ensure_same_school(current_user, resource_school_id)`** — called
+  after fetching a specific resource by ID; raises `404` (never `403`,
+  see below) if the resource's school doesn't match the caller's, unless
+  the caller is a `SUPER_ADMIN`.
+- **`scope_to_school(query, model, current_user)`** — wraps a list/search
+  query with the `school_id` filter for every role except `SUPER_ADMIN`.
+  This is the reusable pattern later phases should use for teachers,
+  students, classes, subjects, assessments, scores, results, and report
+  cards, instead of each endpoint writing its own `school_id` check.
+
+**Where tenant identity comes from:** always `current_user.school_id`, as
+loaded fresh from the database inside Phase 3's `get_current_user()` — a
+`school_id` claim baked into the JWT is never used for an authorization
+decision, only the freshly-loaded DB row. If an admin changes a user's
+school, role, or active status, that takes effect on their very next
+request, not after their token happens to expire.
+
+### Why 404 instead of 403 for cross-tenant access
+
+When a School A user asks for School B's data by ID, the API returns the
+exact same `404 Not Found` it would return for an ID that doesn't exist
+at all — proven in
+`test_nonexistent_school_id_and_wrong_tenant_school_id_look_identical`,
+which asserts the two responses are byte-for-byte equal. A `403` would
+leak "this exists, you just can't have it"; `404` doesn't.
+
+### SUPER_ADMIN behavior
+
+- `GET /api/schools/me` → `403` (no home school).
+- `GET /api/schools/{id}` → works for **any** school ID — this is the
+  "explicitly authorized Super Admin functionality" the spec calls for.
+  A `SUPER_ADMIN` is never treated as implicitly belonging to every
+  school through the ordinary tenant dependencies above
+  (`get_current_school`/`require_school_user` both reject them); cross-
+  school access only happens through an endpoint that explicitly checks
+  for the `SUPER_ADMIN` role, like `get_school_by_id`.
+
+### New endpoints
+
+| Method | Path | Auth | Behavior |
+|---|---|---|---|
+| GET | `/api/schools/me` | School-bound user | Returns the caller's own school. `403` for `SUPER_ADMIN`. |
+| GET | `/api/schools/{school_id}` | Any authenticated user | Own school → `200`. `SUPER_ADMIN` → any school → `200`. Anyone else's ID → `404`. |
+
+Full school management (create/edit/logo upload/branding) is Phase 5.
+
+### Mass-assignment protection
+
+Checked every existing Phase 2 `*Create` schema
+(`StudentCreate`, `TeacherCreate`, `SchoolClassCreate`, `SubjectCreate`,
+`AcademicSessionCreate`, `AssessmentTypeCreate`, `GradingScaleCreate`,
+`ScoreCreate`): **none of them accept a `school_id` field** — they never
+did, going back to how they were designed in Phase 2. So there was
+nothing to remove here; this phase's job was making sure that stays true
+as write endpoints for those resources get built in later phases (use
+`current_user.school_id` / `get_current_school()` server-side, never a
+client-supplied value — see `ensure_same_school`/`scope_to_school`).
+
+### Database migration
+
+**No Phase 4 database migration required.** No models or columns
+changed — tenant isolation here is entirely an authorization-layer
+concern on top of the `school_id` columns Phase 2 already added.
+Migration history is unchanged: `f98225df0d46` → `4dc4f1df9355`.
+
+### Frontend
+
+The dashboard (`src/pages/DashboardPage.tsx`) now calls the new
+`GET /api/schools/me` (`src/api/schools.ts`) for school-bound users and
+displays the school's name alongside the existing email/role display —
+proving the tenant context flows through end to end, without yet being a
+real dashboard. `SUPER_ADMIN` users skip that call entirely (shown as
+"Platform administrator" instead), matching the backend's 403 for them.
+As always, none of this is a security boundary — the backend enforces
+isolation regardless of what the frontend shows or hides.
+
+### Running the Phase 4 tests
+
+```bash
+cd backend
+source venv/bin/activate
+pytest -v
+```
+
+`tests/test_tenancy_unit.py` — unit tests for `ensure_same_school` and
+`scope_to_school`, run directly without HTTP.
+`tests/test_tenant_isolation_api.py` — full end-to-end tests: two schools,
+a user in each, a `SUPER_ADMIN`, and every cross-tenant scenario from the
+spec (own school access, blocked cross-school access by URL ID, identical
+404s for "not yours" vs. "doesn't exist", `SUPER_ADMIN` cross-school
+access, request-body `school_id` tampering ignored, unauthenticated
+requests, inactive users).
+
+### Login and identity UX
+
+Live testing after Phase 3 surfaced two gaps, both addressed here:
+
+1. **The login page didn't identify the product.** It now shows "School
+   Results Management" with the tagline "Manage assessments, results and
+   reports" above the form. The login form itself is unchanged — still
+   just email + password, no role or school picker. Letting a user claim
+   "I am a SCHOOL_ADMIN" or "I belong to School X" from a form would let
+   them self-assign privileges; identity and tenant come only from what
+   the backend already knows about the authenticated account.
+2. **After logging in, it wasn't obvious which account/tenant you were
+   using.** The dashboard now shows, for a school-bound user, their
+   school's name, email, and a human-readable role label (`SCHOOL_ADMIN`
+   → "School Administrator", `TEACHER` → "Teacher", `STUDENT` → "Student"
+   — see `src/utils/roleLabels.ts`). A `SUPER_ADMIN` sees "School Results
+   Management" with a "Global Administration" badge instead of a
+   fabricated school — consistent with the backend never treating them as
+   belonging to one.
+
+### Login page: "Create your school account" (placeholder only)
+
+The login page now has a "New school? Create your school account" link,
+going to `/register-school`. That page is a static placeholder — no form
+fields, no API call, no database writes — saying registration isn't
+available yet and linking back to sign-in. The real flow (create one
+School + its first SCHOOL_ADMIN) is Phase 5. This exists so the link has
+somewhere honest to go rather than being a dead link, a silently-broken
+form, or (worse) a real, unrestricted "pick your own role and school_id"
+registration form — which Phase 4 is explicitly designed to prevent
+(see "Future Phase 5 registration architecture" below).
+
+### Future Phase 5 registration architecture (why Phase 4 doesn't block it)
+
+Phase 5 will add self-service registration that creates **one School +
+one initial SCHOOL_ADMIN** for it, using the same building blocks already
+in place:
+
+- `auth_service.create_user()` (Phase 3) already hashes the password and
+  inserts a `User` row with whatever `role`/`school_id` its caller passes
+  — a future registration endpoint calls it with a freshly-created
+  `School.id` and `role=UserRole.SCHOOL_ADMIN`, not values the client
+  supplied.
+- Nothing in Phase 4 lets a client choose their own role or `school_id`
+  anywhere (`/api/schools/me` and `/api/schools/{id}` are both read-only
+  and both derive identity from the authenticated user, never from the
+  request). A future public registration endpoint follows the identical
+  rule: it may create a school + its first admin, but it must never
+  accept a client-supplied `role` or `school_id` for that admin, and it
+  must never let someone attach themselves to an *existing* school.
+  Teacher/student account provisioning will go through the school's own
+  authorized workflow (a `SCHOOL_ADMIN` creating accounts, in a later
+  phase), not public self-registration.
+
+**Next up: Phase 5 — School Management** (school profile, logo upload,
+branding, academic sessions, terms, classes, subjects — all properly
+tenant-scoped using the `scope_to_school`/`ensure_same_school` pattern
+established here).

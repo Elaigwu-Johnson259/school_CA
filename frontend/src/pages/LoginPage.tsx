@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 
 export function LoginPage() {
@@ -32,9 +32,11 @@ export function LoginPage() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-white rounded-lg shadow-sm border border-slate-200 p-6 space-y-4"
       >
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Sign in</h1>
-          <p className="text-sm text-slate-500">School Results Management System</p>
+        <div className="text-center space-y-1">
+          <h1 className="text-xl font-semibold tracking-tight text-slate-800">
+            School Results Management
+          </h1>
+          <p className="text-sm text-slate-500">Manage assessments, results and reports</p>
         </div>
 
         <div className="space-y-1">
@@ -74,6 +76,13 @@ export function LoginPage() {
         >
           {isSubmitting ? "Signing in…" : "Sign in"}
         </button>
+
+        <p className="text-center text-sm text-slate-500">
+          New school?{" "}
+          <Link to="/register-school" className="font-medium text-slate-700 hover:underline">
+            Create your school account
+          </Link>
+        </p>
       </form>
     </div>
   );
