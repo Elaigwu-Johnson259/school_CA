@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { fetchMySchool } from "@/api/schools";
 import { roleLabel } from "@/utils/roleLabels";
@@ -52,6 +53,15 @@ export function DashboardPage() {
             <p>{user.email}</p>
             <p className="text-slate-400">{roleLabel(user.role)}</p>
           </div>
+        )}
+
+        {isSchoolBound && (
+          <Link
+            to="/school/profile"
+            className="block text-sm font-medium text-slate-700 hover:underline"
+          >
+            School profile
+          </Link>
         )}
 
         <button
