@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     LOCAL_STORAGE_PATH: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 5
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
 
 
 settings = Settings()

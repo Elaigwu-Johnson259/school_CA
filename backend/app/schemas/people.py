@@ -48,3 +48,31 @@ class StudentRead(StudentBase):
     id: int
     school_id: int
     status: PersonStatus
+
+class TeacherAssignmentCreate(BaseModel):
+    teacher_id: int
+    school_class_id: int
+    subject_id: int
+
+
+class TeacherAssignmentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    teacher_id: int
+    school_class_id: int
+    subject_id: int
+
+class StudentEnrollmentCreate(BaseModel):
+    student_id: int
+    school_class_id: int
+    academic_session_id: int
+
+
+class StudentEnrollmentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    student_id: int
+    school_class_id: int
+    academic_session_id: int
