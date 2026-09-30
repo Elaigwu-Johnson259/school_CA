@@ -56,12 +56,30 @@ export function DashboardPage() {
         )}
 
         {isSchoolBound && (
-          <Link
-            to="/school/profile"
-            className="block text-sm font-medium text-slate-700 hover:underline"
-          >
-            School profile
-          </Link>
+          <div className="space-y-3 pt-2 text-left">
+            <div className="border-t border-slate-100 pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                School management
+              </p>
+            </div>
+
+            <Link
+              to="/school/profile"
+              className="block rounded-md border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              School profile
+            </Link>
+
+            <Link
+              to="/academic/sessions"
+              className="block rounded-md border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Academic sessions
+              <span className="mt-1 block text-xs font-normal text-slate-400">
+                Manage school years and current session
+              </span>
+            </Link>
+          </div>
         )}
 
         <button

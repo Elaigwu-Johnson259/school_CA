@@ -5,6 +5,8 @@ import { LoginPage } from "@/pages/LoginPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { RegisterSchoolPage } from "@/pages/RegisterSchoolPage";
 import { SchoolProfilePage } from "@/pages/SchoolProfilePage";
+import { AcademicSessionsPage } from "@/pages/AcademicSessionsPage";
+import { AcademicTermsPage } from "@/pages/AcademicTermsPage";
 
 /**
  * Routing so far: login → protected dashboard → logout, public school
@@ -30,6 +32,22 @@ function App() {
           element={
             <ProtectedRoute>
               <SchoolProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/academic/sessions/:sessionId/terms"
+          element={
+            <ProtectedRoute>
+              <AcademicTermsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/academic/sessions"
+          element={
+            <ProtectedRoute>
+              <AcademicSessionsPage />
             </ProtectedRoute>
           }
         />
