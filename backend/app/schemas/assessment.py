@@ -54,3 +54,22 @@ class ScoreRead(ScoreCreate):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+
+class AssessmentTypeUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[AssessmentCategory] = None
+    max_score: Optional[float] = Field(default=None, gt=0)
+    display_order: Optional[int] = None
+
+class ResultRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    student_id: int
+    subject_id: int
+    term_id: int
+    ca_total: float
+    exam_score: float
+    total: float
+    grade: Optional[str] = None
+    subject_position: Optional[int] = None

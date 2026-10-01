@@ -24,3 +24,11 @@ export interface SchoolClass {
   name: string;
   created_at: string;
 }
+
+export interface Subject {
+  id: number;
+  school_id: number;
+  name: string;
+  code: string | null;
+  created_at: string;
+}

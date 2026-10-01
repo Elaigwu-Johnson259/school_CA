@@ -9,6 +9,7 @@ import { AcademicSessionsPage } from "@/pages/AcademicSessionsPage";
 import { AcademicTermsPage } from "@/pages/AcademicTermsPage";
 import { StudentsPage } from "@/pages/StudentsPage";
 import { StudentDetailsPage } from "@/pages/StudentDetailsPage";
+import { ScoresPage } from "@/pages/ScoresPage";
 
 /**
  * Routing so far: login → protected dashboard → logout, public school
@@ -66,6 +67,14 @@ function App() {
           element={
             <ProtectedRoute>
               <StudentDetailsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/scores"
+          element={
+            <ProtectedRoute>
+              <ScoresPage />
             </ProtectedRoute>
           }
         />

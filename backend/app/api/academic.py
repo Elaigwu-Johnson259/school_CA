@@ -15,6 +15,7 @@ from app.schemas.academic import (
     TermRead,
     TermUpdate,
 )
+from app.schemas.assessment import AssessmentTypeCreate, AssessmentTypeRead, AssessmentTypeUpdate, ScoreCreate, ScoreRead, ResultRead
 from app.schemas.academic_structure import (
     ClassSubjectCreate,
     ClassSubjectRead,
@@ -37,6 +38,8 @@ from app.schemas.people import (
     TeacherRead,
 )
 from app.services import academic_service
+from app.services import assessment_service
+from app.services import result_service
 
 router = APIRouter(prefix="/api/academic", tags=["academic"])
 
@@ -624,4 +627,131 @@ def delete_teacher_assignment(
         db=db,
         current_user=current_user,
         assignment_id=assignment_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Assessment types
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/assessment-types",
+    response_model=AssessmentTypeRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_assessment_type(
+    payload: AssessmentTypeCreate,
+    current_user: User = Depends(
+        require_roles(UserRole.SCHOOL_ADMIN, UserRole.SUPER_ADMIN)
+    ),
+    db: Session = Depends(get_db),
+):
+    return assessment_service.create_assessment_type(
+        db=db,
+        current_user=current_user,
+        name=payload.name,
+        category=payload.category,
+        max_score=payload.max_score,
+        display_order=payload.display_order,
+    )
+
+
+@router.get(
+    "/assessment-types",
+    response_model=list[AssessmentTypeRead],
+)
+def list_assessment_types(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return assessment_service.list_assessment_types(
+        db=db,
+        current_user=current_user,
+    )
+
+
+@router.get(
+    "/assessment-types/{assessment_type_id}",
+    response_model=AssessmentTypeRead,
+)
+def get_assessment_type(
+    assessment_type_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return assessment_service.get_assessment_type(
+        db=db,
+        current_user=current_user,
+        assessment_type_id=assessment_type_id,
+    )
+
+@router.patch(
+    "/assessment-types/{assessment_type_id}",
+    response_model=AssessmentTypeRead,
+)
+def update_assessment_type(
+    assessment_type_id: int,
+    payload: AssessmentTypeUpdate,
+    current_user: User = Depends(
+        require_roles(UserRole.SCHOOL_ADMIN, UserRole.SUPER_ADMIN)
+    ),
+    db: Session = Depends(get_db),
+):
+    return assessment_service.update_assessment_type(
+        db=db,
+        current_user=current_user,
+        assessment_type_id=assessment_type_id,
+        name=payload.name,
+        category=payload.category,
+        max_score=payload.max_score,
+        display_order=payload.display_order,
+    )
+
+@router.post(
+    "/scores",
+    response_model=ScoreRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_score(
+    payload: ScoreCreate,
+    current_user: User = Depends(
+        require_roles(
+            UserRole.SCHOOL_ADMIN,
+            UserRole.TEACHER,
+            UserRole.SUPER_ADMIN,
+        )
+    ),
+    db: Session = Depends(get_db),
+):
+    return assessment_service.create_score(
+        db=db,
+        current_user=current_user,
+        student_id=payload.student_id,
+        subject_id=payload.subject_id,
+        school_class_id=payload.school_class_id,
+        term_id=payload.term_id,
+        assessment_type_id=payload.assessment_type_id,
+        value=payload.value,
+    )
+
+@router.post("/results/calculate", response_model=ResultRead)
+def calculate_result(
+    student_id: int,
+    subject_id: int,
+    term_id: int,
+    current_user: User = Depends(
+        require_roles(
+            UserRole.SCHOOL_ADMIN,
+            UserRole.TEACHER,
+            UserRole.SUPER_ADMIN,
+        )
+    ),
+    db: Session = Depends(get_db),
+):
+    return result_service.calculate_result(
+        db=db,
+        current_user=current_user,
+        student_id=student_id,
+        subject_id=subject_id,
+        term_id=term_id,
     )
