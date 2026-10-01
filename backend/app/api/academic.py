@@ -15,7 +15,7 @@ from app.schemas.academic import (
     TermRead,
     TermUpdate,
 )
-from app.schemas.assessment import AssessmentTypeCreate, AssessmentTypeRead, AssessmentTypeUpdate, ScoreCreate, ScoreRead, ResultRead
+from app.schemas.assessment import AssessmentTypeCreate, AssessmentTypeRead, AssessmentTypeUpdate, ScoreCreate, ScoreRead, ScoreUpdate, ResultRead, ReportCardRead
 from app.schemas.academic_structure import (
     ClassSubjectCreate,
     ClassSubjectRead,
@@ -357,6 +357,7 @@ def create_teacher(
         email=payload.email,
         phone=payload.phone,
         employee_id=payload.employee_id,
+        password=payload.password,
     )
 
 
@@ -417,7 +418,7 @@ def update_teacher(
 def create_student(
     payload: StudentCreate,
     current_user: User = Depends(
-        require_roles(UserRole.SCHOOL_ADMIN, UserRole.SUPER_ADMIN)
+        require_roles(UserRole.SCHOOL_ADMIN, UserRole.SUPER_ADMIN, UserRole.TEACHER)
     ),
     db: Session = Depends(get_db),
 ):
@@ -433,6 +434,7 @@ def create_student(
         guardian_name=payload.guardian_name,
         guardian_phone=payload.guardian_phone,
         address=payload.address,
+        password=payload.password,
     )
 
 
@@ -498,7 +500,7 @@ def update_student(
 def create_student_enrollment(
     payload: StudentEnrollmentCreate,
     current_user: User = Depends(
-        require_roles(UserRole.SCHOOL_ADMIN, UserRole.SUPER_ADMIN)
+        require_roles(UserRole.SCHOOL_ADMIN, UserRole.TEACHER, UserRole.SUPER_ADMIN)
     ),
     db: Session = Depends(get_db),
 ):
@@ -548,7 +550,7 @@ def get_student_enrollment(
 def delete_student_enrollment(
     enrollment_id: int,
     current_user: User = Depends(
-        require_roles(UserRole.SCHOOL_ADMIN, UserRole.SUPER_ADMIN)
+        require_roles(UserRole.SCHOOL_ADMIN, UserRole.TEACHER, UserRole.SUPER_ADMIN)
     ),
     db: Session = Depends(get_db),
 ):
@@ -715,15 +717,11 @@ def update_assessment_type(
 def create_score(
     payload: ScoreCreate,
     current_user: User = Depends(
-        require_roles(
-            UserRole.SCHOOL_ADMIN,
-            UserRole.TEACHER,
-            UserRole.SUPER_ADMIN,
-        )
+        require_roles(UserRole.TEACHER, UserRole.SUPER_ADMIN)
     ),
     db: Session = Depends(get_db),
 ):
-    return assessment_service.create_score(
+    score = assessment_service.create_score(
         db=db,
         current_user=current_user,
         student_id=payload.student_id,
@@ -733,6 +731,63 @@ def create_score(
         assessment_type_id=payload.assessment_type_id,
         value=payload.value,
     )
+    result_service.calculate_result(
+        db=db, current_user=current_user, student_id=score.student_id,
+        subject_id=score.subject_id, term_id=score.term_id,
+    )
+    return score
+
+@router.get("/scores", response_model=list[ScoreRead])
+def list_scores(
+    student_id: int | None = None,
+    subject_id: int | None = None,
+    term_id: int | None = None,
+    school_class_id: int | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return assessment_service.list_scores(
+        db=db, current_user=current_user, student_id=student_id, subject_id=subject_id,
+        term_id=term_id, school_class_id=school_class_id,
+    )
+
+
+@router.patch("/scores/{score_id}", response_model=ScoreRead)
+def update_score(
+    score_id: int,
+    payload: ScoreUpdate,
+    current_user: User = Depends(
+        require_roles(UserRole.TEACHER, UserRole.SUPER_ADMIN)
+    ),
+    db: Session = Depends(get_db),
+):
+    score = assessment_service.update_score(db=db, current_user=current_user, score_id=score_id, value=payload.value)
+    result_service.calculate_result(
+        db=db, current_user=current_user, student_id=score.student_id,
+        subject_id=score.subject_id, term_id=score.term_id,
+    )
+    return score
+
+
+@router.get("/results", response_model=list[ResultRead])
+def list_results(
+    student_id: int | None = None,
+    term_id: int | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return result_service.list_results(db=db, current_user=current_user, student_id=student_id, term_id=term_id)
+
+
+@router.get("/report-cards/{student_id}/{term_id}", response_model=ReportCardRead)
+def get_report_card(
+    student_id: int,
+    term_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return result_service.get_report_card(db=db, current_user=current_user, student_id=student_id, term_id=term_id)
+
 
 @router.post("/results/calculate", response_model=ResultRead)
 def calculate_result(
@@ -755,3 +810,10 @@ def calculate_result(
         subject_id=subject_id,
         term_id=term_id,
     )
+
+@router.get("/me/teacher", response_model=TeacherRead)
+def get_my_teacher_profile(
+    current_user: User = Depends(require_roles(UserRole.TEACHER)),
+    db: Session = Depends(get_db),
+):
+    return academic_service.get_teacher_for_user(db, current_user)

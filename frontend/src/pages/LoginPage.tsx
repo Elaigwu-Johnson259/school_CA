@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -15,12 +15,12 @@ export function LoginPage() {
     setError(null);
     setIsSubmitting(true);
     try {
-      await login(email, password);
+      await login(identifier, password);
       navigate("/dashboard");
     } catch {
       // Deliberately generic — the backend already avoids revealing
       // whether the email or the password was wrong.
-      setError("Incorrect email or password.");
+      setError("Incorrect identifier or password.");
     } finally {
       setIsSubmitting(false);
     }
@@ -40,15 +40,15 @@ export function LoginPage() {
         </div>
 
         <div className="space-y-1">
-          <label htmlFor="email" className="text-sm font-medium text-slate-700">
+          <label htmlFor="identifier" className="text-sm font-medium text-slate-700">
             Email
           </label>
           <input
-            id="email"
-            type="email"
+            id="identifier"
+            type="text"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
           />
         </div>

@@ -9,10 +9,12 @@ import {
   updateStudent,
 } from "@/api/students";
 import { fetchClasses, fetchSessions } from "@/api/academic";
+import { useAuth } from "@/context/AuthContext";
 
 export function StudentDetailsPage() {
   const { studentId } = useParams();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
   const [admissionNumber, setAdmissionNumber] = useState("");
@@ -166,7 +168,7 @@ export function StudentDetailsPage() {
                 .join(" ")}
             </h1>
 
-            {!isEditing && (
+            {!isEditing && user?.role !== "TEACHER" && (
               <button
                 type="button"
                 onClick={startEditing}

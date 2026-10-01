@@ -10,6 +10,8 @@ import { AcademicTermsPage } from "@/pages/AcademicTermsPage";
 import { StudentsPage } from "@/pages/StudentsPage";
 import { StudentDetailsPage } from "@/pages/StudentDetailsPage";
 import { ScoresPage } from "@/pages/ScoresPage";
+import { StudentResultPage } from "@/pages/StudentResultPage";
+import { TeachersPage } from "@/pages/TeachersPage";
 
 /**
  * Routing so far: login → protected dashboard → logout, public school
@@ -33,7 +35,7 @@ function App() {
         <Route
           path="/school/profile"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={["SCHOOL_ADMIN", "SUPER_ADMIN"]}>
               <SchoolProfilePage />
             </ProtectedRoute>
           }
@@ -41,7 +43,7 @@ function App() {
         <Route
           path="/academic/sessions/:sessionId/terms"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={["SCHOOL_ADMIN", "SUPER_ADMIN"]}>
               <AcademicTermsPage />
             </ProtectedRoute>
           }
@@ -49,15 +51,23 @@ function App() {
         <Route
           path="/academic/sessions"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={["SCHOOL_ADMIN", "SUPER_ADMIN"]}>
               <AcademicSessionsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teachers"
+          element={
+            <ProtectedRoute roles={["SCHOOL_ADMIN", "SUPER_ADMIN"]}>
+              <TeachersPage />
             </ProtectedRoute>
           }
         />
         <Route
           path="/students"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={["SCHOOL_ADMIN", "TEACHER", "SUPER_ADMIN"]}>
               <StudentsPage />
             </ProtectedRoute>
           }
@@ -65,7 +75,7 @@ function App() {
         <Route
           path="/students/:studentId"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={["SCHOOL_ADMIN", "TEACHER", "SUPER_ADMIN"]}>
               <StudentDetailsPage />
             </ProtectedRoute>
           }
@@ -73,8 +83,16 @@ function App() {
         <Route
           path="/scores"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={["TEACHER", "SUPER_ADMIN"]}>
               <ScoresPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/student/results"
+          element={
+            <ProtectedRoute roles={["STUDENT"]}>
+              <StudentResultPage />
             </ProtectedRoute>
           }
         />

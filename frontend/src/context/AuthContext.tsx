@@ -6,7 +6,7 @@ import type { AuthenticatedUser } from "@/types/auth";
 interface AuthContextValue {
   user: AuthenticatedUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -30,8 +30,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const response = await loginRequest(email, password);
+  const login = useCallback(async (identifier: string, password: string) => {
+    const response = await loginRequest(identifier, password);
     setStoredTokens({ accessToken: response.access_token, refreshToken: response.refresh_token });
     setUser(response.user);
   }, []);

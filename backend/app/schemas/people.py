@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import Gender, PersonStatus
 
@@ -15,7 +15,7 @@ class TeacherBase(BaseModel):
 
 
 class TeacherCreate(TeacherBase):
-    pass
+    password: Optional[str] = Field(default=None, min_length=8)
 
 
 class TeacherRead(TeacherBase):
@@ -39,7 +39,7 @@ class StudentBase(BaseModel):
 
 
 class StudentCreate(StudentBase):
-    pass
+    password: Optional[str] = Field(default=None, min_length=8)
 
 
 class StudentUpdate(BaseModel):

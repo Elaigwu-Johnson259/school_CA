@@ -7,7 +7,7 @@ from app.models.enums import UserRole
 
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email: Optional[EmailStr] = None
     role: UserRole
     school_id: Optional[int] = None
 

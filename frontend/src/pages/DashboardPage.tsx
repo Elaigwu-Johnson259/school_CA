@@ -1,104 +1,28 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 import { fetchMySchool } from "@/api/schools";
+import { fetchClasses, fetchTeacherAssignments } from "@/api/academic";
+import { fetchStudentEnrollments, fetchStudents } from "@/api/students";
+import { useAuth } from "@/context/AuthContext";
 import { roleLabel } from "@/utils/roleLabels";
 
-/**
- * Minimal placeholder proving the authenticated + tenant-aware flow
- * works end to end. The real per-role dashboards get built in a later
- * phase — this only shows enough (school name, user email, human-readable
- * role) to confirm the account/tenant identity a logged-in user is
- * operating as, per Phase 4's UX requirements.
- */
 export function DashboardPage() {
   const { user, logout } = useAuth();
+  const schoolQuery = useQuery({ queryKey: ["my-school"], queryFn: fetchMySchool, enabled: Boolean(user?.school_id) && user?.role !== "STUDENT" });
+  const assignments = useQuery({ queryKey: ["teacher-assignments"], queryFn: fetchTeacherAssignments, enabled: user?.role === "TEACHER" });
+  const studentProfile = useQuery({ queryKey: ["students"], queryFn: fetchStudents, enabled: user?.role === "STUDENT" });
+  const studentEnrollments = useQuery({ queryKey: ["student-enrollments"], queryFn: fetchStudentEnrollments, enabled: user?.role === "STUDENT" });
+  const classes = useQuery({ queryKey: ["classes"], queryFn: fetchClasses, enabled: user?.role === "STUDENT" });
 
-  // SUPER_ADMIN has no single "home" school (school_id is null) — never
-  // fabricate one for them. Only ask for a school when the logged-in
-  // user actually belongs to one.
-  const isSchoolBound = user?.school_id !== null && user?.school_id !== undefined;
+  if (user?.role === "STUDENT") {
+    const student = studentProfile.data?.[0];
+    const currentClass = classes.data?.find((item) => item.id === studentEnrollments.data?.[0]?.school_class_id);
+    return <main className="min-h-screen bg-slate-50 px-4 py-8"><div className="mx-auto max-w-5xl space-y-6"><header className="rounded-2xl bg-white border border-slate-200 p-7 shadow-sm"><p className="text-sm text-slate-500">Student Dashboard</p><h1 className="mt-1 text-3xl font-bold text-slate-900">{student ? `${student.first_name} ${student.last_name}` : "Student"}</h1><div className="mt-3 grid gap-2 text-sm text-slate-500 md:grid-cols-3"><span>Admission: {student?.admission_number ?? "—"}</span><span>Class: {currentClass?.name ?? "—"}</span><span>Role: Student</span></div></header><Link to="/student/results" className="block rounded-xl border-2 border-slate-900 bg-white p-7 shadow-sm hover:bg-slate-50"><p className="font-semibold text-slate-900">View My Result</p><p className="mt-2 text-sm text-slate-500">Open your complete CA, exam, grade and position result.</p></Link><button onClick={() => logout()} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Log out</button></div></main>;
+  }
 
-  const { data: school, isLoading: isSchoolLoading } = useQuery({
-    queryKey: ["my-school"],
-    queryFn: fetchMySchool,
-    enabled: isSchoolBound,
-  });
+  if (user?.role === "TEACHER") {
+    return <main className="min-h-screen bg-slate-50 px-4 py-8"><div className="mx-auto max-w-6xl space-y-6"><header className="rounded-2xl bg-slate-900 p-7 text-white shadow-sm"><p className="text-sm text-slate-300">Teacher Dashboard</p><h1 className="mt-1 text-3xl font-bold">Academic Work</h1><p className="mt-2 text-slate-300">{assignments.data?.length ?? 0} teaching assignments</p></header><div className="grid gap-4 md:grid-cols-2"><Link to="/scores" className="rounded-xl border-2 border-slate-900 bg-white p-7 shadow-sm"><p className="font-semibold">Enter Scores</p><p className="mt-2 text-sm text-slate-500">CA1, CA2, CA3 and Exam</p></Link><Link to="/students" className="rounded-xl border border-slate-200 bg-white p-7 shadow-sm"><p className="font-semibold">Manage Students</p><p className="mt-2 text-sm text-slate-500">Manage permitted enrollment.</p></Link></div><button onClick={() => logout()} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Log out</button></div></main>;
+  }
 
-  return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-sm border border-slate-200 p-6 space-y-4 text-center">
-        <p className="text-sm text-slate-400">Welcome back</p>
-
-        {isSchoolBound ? (
-          <div>
-            {isSchoolLoading && <p className="text-sm text-slate-400">Loading school…</p>}
-            {school && (
-              <h1 className="text-xl font-semibold text-slate-800">{school.name}</h1>
-            )}
-          </div>
-        ) : (
-          user && (
-            <div className="space-y-1">
-              <h1 className="text-xl font-semibold text-slate-800">School Results Management</h1>
-              <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                Global Administration
-              </span>
-            </div>
-          )
-        )}
-
-        {user && (
-          <div className="text-sm text-slate-600 space-y-1">
-            <p>{user.email}</p>
-            <p className="text-slate-400">{roleLabel(user.role)}</p>
-          </div>
-        )}
-
-        {isSchoolBound && (
-          <div className="space-y-3 pt-2 text-left">
-            <div className="border-t border-slate-100 pt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                School management
-              </p>
-            </div>
-
-            <Link
-              to="/school/profile"
-              className="block rounded-md border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              School profile
-            </Link>
-
-            <Link
-              to="/academic/sessions"
-              className="block rounded-md border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              Academic sessions
-              <span className="mt-1 block text-xs font-normal text-slate-400">
-                Manage school years and current session
-              </span>
-            </Link>
-
-            <Link
-              to="/students"
-              className="block rounded-md border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              Students
-              <span className="mt-1 block text-xs font-normal text-slate-400">
-                Add and manage students
-              </span>
-            </Link>
-          </div>
-        )}
-
-        <button
-          onClick={() => logout()}
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-        >
-          Log out
-        </button>
-      </div>
-    </div>
-  );
+  return <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4"><div className="w-full max-w-3xl rounded-2xl bg-white border border-slate-200 p-7 shadow-sm"><div className="flex items-start justify-between"><div><p className="text-sm text-slate-500">{roleLabel(user?.role ?? "SCHOOL_ADMIN")}</p><h1 className="mt-1 text-2xl font-bold text-slate-900">{schoolQuery.data?.name ?? "School Results Management"}</h1><p className="mt-2 text-sm text-slate-500">{user?.email}</p></div><button onClick={() => logout()} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Log out</button></div><div className="mt-7 grid gap-3 md:grid-cols-2"><Link to="/school/profile" className="rounded-lg border border-slate-200 p-4 font-medium">School profile</Link><Link to="/academic/sessions" className="rounded-lg border border-slate-200 p-4 font-medium">Academic sessions & terms</Link><Link to="/students" className="rounded-lg border border-slate-200 p-4 font-medium">Students</Link><Link to="/teachers" className="rounded-lg border border-slate-200 p-4 font-medium">Teachers & assignments</Link></div></div></main>;
 }

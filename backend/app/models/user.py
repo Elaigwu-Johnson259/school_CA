@@ -1,12 +1,4 @@
-"""
-The User model: login credentials + role, shared by all four roles.
-
-A SUPER_ADMIN has school_id = NULL (they aren't tied to one school).
-SCHOOL_ADMIN, TEACHER, and STUDENT all belong to exactly one school.
-Which rule applies is enforced in the service layer in a later phase,
-not by a raw DB constraint, since SQLite/Postgres CHECK constraints for
-"nullable depending on another column's value" get awkward fast.
-"""
+"""Shared login credentials for school administrators, teachers and students."""
 from __future__ import annotations
 
 from typing import Optional
@@ -27,7 +19,9 @@ class User(Base, TimestampMixin):
     school_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("schools.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    email: Mapped[str] = mapped_column(String(200), unique=True, nullable=False, index=True)
+    # School admins/teachers use email. Students authenticate with their
+    # admission number, so student accounts do not require an email address.
+    email: Mapped[Optional[str]] = mapped_column(String(200), unique=True, nullable=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
         SAEnum(UserRole, native_enum=False, length=20), nullable=False

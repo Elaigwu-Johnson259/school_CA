@@ -12,6 +12,7 @@ export interface StudentPayload {
   guardian_name?: string | null;
   guardian_phone?: string | null;
   address?: string | null;
+  password?: string;
 }
 
 export async function fetchStudents(): Promise<Student[]> {
@@ -68,4 +69,9 @@ export async function deleteStudentEnrollment(
   enrollmentId: number,
 ): Promise<void> {
   await apiClient.delete(`/academic/student-enrollments/${enrollmentId}`);
+}
+
+export async function createStudentAccount(studentId: number, password: string) {
+  const response = await apiClient.post(`/academic/students/${studentId}/account`, { password });
+  return response.data;
 }

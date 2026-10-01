@@ -9,6 +9,7 @@ from app.models.academic_structure import ClassSubject, SchoolClass, Subject
 from app.models.enums import UserRole
 from app.models.people import Student, StudentClass, Teacher, TeacherAssignment
 from app.models.user import User
+from app.services.auth_service import create_user
 
 
 def create_session(
@@ -194,7 +195,12 @@ def list_classes(
 ) -> list[SchoolClass]:
     query = db.query(SchoolClass)
 
-    if current_user.role != UserRole.SUPER_ADMIN:
+    if current_user.role == UserRole.TEACHER:
+        teacher = get_teacher_for_user(db, current_user)
+        query = query.join(TeacherAssignment, TeacherAssignment.school_class_id == SchoolClass.id).filter(
+            TeacherAssignment.teacher_id == teacher.id
+        ).distinct()
+    elif current_user.role != UserRole.SUPER_ADMIN:
         query = query.filter(SchoolClass.school_id == current_user.school_id)
 
     return query.order_by(SchoolClass.name).all()
@@ -263,7 +269,12 @@ def list_subjects(
 ) -> list[Subject]:
     query = db.query(Subject)
 
-    if current_user.role != UserRole.SUPER_ADMIN:
+    if current_user.role == UserRole.TEACHER:
+        teacher = get_teacher_for_user(db, current_user)
+        query = query.join(TeacherAssignment, TeacherAssignment.subject_id == Subject.id).filter(
+            TeacherAssignment.teacher_id == teacher.id
+        ).distinct()
+    elif current_user.role != UserRole.SUPER_ADMIN:
         query = query.filter(Subject.school_id == current_user.school_id)
 
     return query.order_by(Subject.name).all()
@@ -349,6 +360,10 @@ def list_class_subjects(
     class_id: int,
 ) -> list[ClassSubject]:
     school_class = get_class(db, current_user, class_id)
+    if current_user.role == UserRole.TEACHER:
+        teacher = get_teacher_for_user(db, current_user)
+        if not has_teacher_class_assignment(db, teacher.id, school_class.id):
+            raise HTTPException(status_code=403, detail="You are not assigned to this class")
 
     return (
         db.query(ClassSubject)
@@ -366,23 +381,24 @@ def create_teacher(
     email: str | None = None,
     phone: str | None = None,
     employee_id: str | None = None,
+    password: str | None = None,
 ) -> Teacher:
     if current_user.school_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This action requires a school-bound account",
-        )
+        raise HTTPException(status_code=403, detail="This action requires a school-bound account")
+    if password and not email:
+        raise HTTPException(status_code=400, detail="A teacher login password requires an email address")
+    if email and db.query(User).filter(User.email == email).first() is not None:
+        raise HTTPException(status_code=409, detail="A user already exists with this email")
 
     teacher = Teacher(
-        school_id=current_user.school_id,
-        first_name=first_name,
-        last_name=last_name,
-        email=email,
-        phone=phone,
-        employee_id=employee_id,
+        school_id=current_user.school_id, first_name=first_name, last_name=last_name,
+        email=email, phone=phone, employee_id=employee_id,
     )
-
     db.add(teacher)
+    db.flush()
+    if password:
+        user = create_user(db, email=email, password=password, role=UserRole.TEACHER, school_id=current_user.school_id)
+        teacher.user_id = user.id
     db.commit()
     db.refresh(teacher)
     return teacher
@@ -394,7 +410,10 @@ def list_teachers(
 ) -> list[Teacher]:
     query = db.query(Teacher)
 
-    if current_user.role != UserRole.SUPER_ADMIN:
+    if current_user.role == UserRole.TEACHER:
+        teacher = get_teacher_for_user(db, current_user)
+        query = query.filter(Teacher.id == teacher.id)
+    elif current_user.role != UserRole.SUPER_ADMIN:
         query = query.filter(Teacher.school_id == current_user.school_id)
 
     return query.order_by(Teacher.last_name, Teacher.first_name).all()
@@ -414,6 +433,8 @@ def get_teacher(
         )
 
     ensure_same_school(current_user, teacher.school_id)
+    if current_user.role == UserRole.TEACHER and teacher.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only access your own teacher profile")
     return teacher
 
 
@@ -462,27 +483,26 @@ def create_student(
     guardian_name: str | None = None,
     guardian_phone: str | None = None,
     address: str | None = None,
+    password: str | None = None,
 ) -> Student:
     if current_user.school_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This action requires a school-bound account",
-        )
+        raise HTTPException(status_code=403, detail="This action requires a school-bound account")
+    existing = db.query(Student).filter(
+        Student.school_id == current_user.school_id, Student.admission_number == admission_number
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Admission number already exists")
 
     student = Student(
-        school_id=current_user.school_id,
-        admission_number=admission_number,
-        first_name=first_name,
-        middle_name=middle_name,
-        last_name=last_name,
-        gender=gender,
-        date_of_birth=date_of_birth,
-        guardian_name=guardian_name,
-        guardian_phone=guardian_phone,
-        address=address,
+        school_id=current_user.school_id, admission_number=admission_number, first_name=first_name,
+        middle_name=middle_name, last_name=last_name, gender=gender, date_of_birth=date_of_birth,
+        guardian_name=guardian_name, guardian_phone=guardian_phone, address=address,
     )
-
     db.add(student)
+    db.flush()
+    if password:
+        user = create_user(db, email=None, password=password, role=UserRole.STUDENT, school_id=current_user.school_id)
+        student.user_id = user.id
     db.commit()
     db.refresh(student)
     return student
@@ -494,7 +514,17 @@ def list_students(
 ) -> list[Student]:
     query = db.query(Student)
 
-    if current_user.role != UserRole.SUPER_ADMIN:
+    if current_user.role == UserRole.STUDENT:
+        query = query.filter(Student.user_id == current_user.id)
+    elif current_user.role == UserRole.TEACHER:
+        teacher = get_teacher_for_user(db, current_user)
+        assigned_class_ids = db.query(TeacherAssignment.school_class_id).filter(
+            TeacherAssignment.teacher_id == teacher.id
+        )
+        query = query.join(StudentClass, StudentClass.student_id == Student.id).filter(
+            StudentClass.school_class_id.in_(assigned_class_ids), Student.school_id == current_user.school_id
+        ).distinct()
+    elif current_user.role != UserRole.SUPER_ADMIN:
         query = query.filter(Student.school_id == current_user.school_id)
 
     return query.order_by(Student.last_name, Student.first_name).all()
@@ -514,6 +544,13 @@ def get_student(
         )
 
     ensure_same_school(current_user, student.school_id)
+    if current_user.role == UserRole.STUDENT and student.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only access your own student profile")
+    if current_user.role == UserRole.TEACHER:
+        teacher = get_teacher_for_user(db, current_user)
+        assigned_class_ids = db.query(TeacherAssignment.school_class_id).filter(TeacherAssignment.teacher_id == teacher.id)
+        if db.query(StudentClass).filter(StudentClass.student_id == student.id, StudentClass.school_class_id.in_(assigned_class_ids)).first() is None:
+            raise HTTPException(status_code=403, detail="You are not assigned to this student's class")
     return student
 
 
@@ -572,9 +609,16 @@ def create_student_enrollment(
     school_class_id: int,
     academic_session_id: int,
 ) -> StudentClass:
-    student = get_student(db, current_user, student_id)
+    student = db.get(Student, student_id)
+    if student is None:
+        raise HTTPException(status_code=404, detail="Student not found")
+    ensure_same_school(current_user, student.school_id)
     school_class = get_class(db, current_user, school_class_id)
     academic_session = get_session(db, current_user, academic_session_id)
+    if current_user.role == UserRole.TEACHER:
+        teacher = get_teacher_for_user(db, current_user)
+        if not has_teacher_class_assignment(db, teacher.id, school_class.id):
+            raise HTTPException(status_code=403, detail="You are not assigned to this class")
 
     if (
         student.school_id != school_class.school_id
@@ -617,7 +661,14 @@ def list_student_enrollments(
         .join(Student, Student.id == StudentClass.student_id)
     )
 
-    if current_user.role != UserRole.SUPER_ADMIN:
+    if current_user.role == UserRole.STUDENT:
+        query = query.filter(Student.user_id == current_user.id)
+    elif current_user.role == UserRole.TEACHER:
+        teacher = get_teacher_for_user(db, current_user)
+        query = query.join(TeacherAssignment, TeacherAssignment.school_class_id == StudentClass.school_class_id).filter(
+            TeacherAssignment.teacher_id == teacher.id, Student.school_id == current_user.school_id
+        ).distinct()
+    elif current_user.role != UserRole.SUPER_ADMIN:
         query = query.filter(Student.school_id == current_user.school_id)
 
     return query.order_by(StudentClass.id).all()
@@ -654,13 +705,44 @@ def delete_student_enrollment(
     enrollment_id: int,
 ) -> None:
     enrollment = get_student_enrollment(
-        db=db,
-        current_user=current_user,
-        enrollment_id=enrollment_id,
+        db=db, current_user=current_user, enrollment_id=enrollment_id,
     )
+    if current_user.role == UserRole.TEACHER:
+        teacher = get_teacher_for_user(db, current_user)
+        if not has_teacher_class_assignment(db, teacher.id, enrollment.school_class_id):
+            raise HTTPException(status_code=403, detail="You are not assigned to this class")
 
     db.delete(enrollment)
     db.commit()
+
+def get_teacher_for_user(db: Session, current_user: User) -> Teacher:
+    if current_user.role != UserRole.TEACHER:
+        raise HTTPException(status_code=403, detail="Teacher account required")
+    teacher = db.query(Teacher).filter(Teacher.user_id == current_user.id).first()
+    if teacher is None or teacher.school_id != current_user.school_id:
+        raise HTTPException(status_code=403, detail="Teacher profile is not linked to this account")
+    return teacher
+
+
+def has_teacher_class_assignment(db: Session, teacher_id: int, class_id: int) -> bool:
+    return db.query(TeacherAssignment).filter(
+        TeacherAssignment.teacher_id == teacher_id, TeacherAssignment.school_class_id == class_id
+    ).first() is not None
+
+
+def get_teacher_assignment_for_subject(
+    db: Session, current_user: User, class_id: int, subject_id: int
+) -> TeacherAssignment:
+    teacher = get_teacher_for_user(db, current_user)
+    assignment = db.query(TeacherAssignment).filter(
+        TeacherAssignment.teacher_id == teacher.id,
+        TeacherAssignment.school_class_id == class_id,
+        TeacherAssignment.subject_id == subject_id,
+    ).first()
+    if assignment is None:
+        raise HTTPException(status_code=403, detail="You are not assigned to this class and subject")
+    return assignment
+
 
 def create_teacher_assignment(
     db: Session,
@@ -732,7 +814,10 @@ def list_teacher_assignments(
         .join(Teacher, Teacher.id == TeacherAssignment.teacher_id)
     )
 
-    if current_user.role != UserRole.SUPER_ADMIN:
+    if current_user.role == UserRole.TEACHER:
+        teacher = get_teacher_for_user(db, current_user)
+        query = query.filter(Teacher.id == teacher.id)
+    elif current_user.role != UserRole.SUPER_ADMIN:
         query = query.filter(Teacher.school_id == current_user.school_id)
 
     return query.order_by(TeacherAssignment.id).all()

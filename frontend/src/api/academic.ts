@@ -76,6 +76,35 @@ export async function fetchClasses(): Promise<SchoolClass[]> {
   return response.data;
 }
 
+export async function createClass(name: string): Promise<SchoolClass> {
+  const response = await apiClient.post<SchoolClass>("/academic/classes", {
+    name,
+  });
+  return response.data;
+}
+
+export async function createSubject(
+  name: string,
+  code: string,
+): Promise<Subject> {
+  const response = await apiClient.post<Subject>("/academic/subjects", {
+    name,
+    code,
+  });
+  return response.data;
+}
+
+export async function createClassSubject(
+  classId: number,
+  subjectId: number,
+): Promise<{ id: number; school_class_id: number; subject_id: number }> {
+  const response = await apiClient.post(
+    `/academic/classes/${classId}/subjects`,
+    { school_class_id: classId, subject_id: subjectId },
+  );
+  return response.data;
+}
+
 export interface AssessmentType {
   id: number;
   school_id: number;
@@ -139,5 +168,94 @@ export async function calculateResult(
 
 export async function fetchSubjects(): Promise<Subject[]> {
   const response = await apiClient.get<Subject[]>("/academic/subjects");
+  return response.data;
+}
+
+export interface TeacherAssignment {
+  id: number;
+  teacher_id: number;
+  school_class_id: number;
+  subject_id: number;
+}
+
+export async function fetchTeacherAssignments(): Promise<TeacherAssignment[]> {
+  const response = await apiClient.get<TeacherAssignment[]>('/academic/teacher-assignments');
+  return response.data;
+}
+
+export async function fetchClassSubjects(classId: number): Promise<{ id: number; school_class_id: number; subject_id: number }[]> {
+  const response = await apiClient.get(`/academic/classes/${classId}/subjects`);
+  return response.data;
+}
+
+export async function fetchScores(filters: {
+  student_id?: number;
+  subject_id?: number;
+  term_id?: number;
+  school_class_id?: number;
+}): Promise<Score[]> {
+  const response = await apiClient.get<Score[]>('/academic/scores', { params: filters });
+  return response.data;
+}
+
+export async function updateScore(scoreId: number, value: number): Promise<Score> {
+  const response = await apiClient.patch<Score>(`/academic/scores/${scoreId}`, { value });
+  return response.data;
+}
+
+export async function fetchResults(filters: { student_id?: number; term_id?: number }): Promise<Result[]> {
+  const response = await apiClient.get<Result[]>('/academic/results', { params: filters });
+  return response.data;
+}
+
+export async function fetchReportCard(studentId: number, termId: number) {
+  const response = await apiClient.get(`/academic/report-cards/${studentId}/${termId}`);
+  return response.data as {
+    id: number;
+    student_id: number;
+    term_id: number;
+    total_marks: number;
+    average: number;
+    overall_grade: string | null;
+    class_position: number | null;
+    number_of_students: number | null;
+    status: string;
+  };
+}
+
+export interface Teacher {
+  id: number;
+  school_id: number;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  employee_id: string | null;
+  status: string;
+}
+
+export async function fetchTeachers(): Promise<Teacher[]> {
+  const response = await apiClient.get<Teacher[]>('/academic/teachers');
+  return response.data;
+}
+
+export async function createTeacher(payload: {
+  first_name: string;
+  last_name: string;
+  email?: string;
+  phone?: string;
+  employee_id?: string;
+  password?: string;
+}): Promise<Teacher> {
+  const response = await apiClient.post<Teacher>('/academic/teachers', payload);
+  return response.data;
+}
+
+export async function createTeacherAssignment(payload: {
+  teacher_id: number;
+  school_class_id: number;
+  subject_id: number;
+}): Promise<TeacherAssignment> {
+  const response = await apiClient.post<TeacherAssignment>('/academic/teacher-assignments', payload);
   return response.data;
 }

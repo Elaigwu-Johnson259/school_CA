@@ -1,17 +1,25 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createStudent,
+  createStudentEnrollment,
   fetchStudents,
   type StudentPayload,
 } from "@/api/students";
+import {
+  fetchClasses,
+  fetchSessions,
+  fetchTeacherAssignments,
+} from "@/api/academic";
 import type { Gender } from "@/types/enums";
 
 const genderOptions: Gender[] = ["MALE", "FEMALE"];
 
 export function StudentsPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const [admissionNumber, setAdmissionNumber] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -22,14 +30,58 @@ export function StudentsPage() {
   const [guardianName, setGuardianName] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [password, setPassword] = useState("");
+  const [selectedSessionId, setSelectedSessionId] = useState("");
+  const [selectedClassId, setSelectedClassId] = useState("");
+
+  const isTeacher = user?.role === "TEACHER";
 
   const studentsQuery = useQuery({
     queryKey: ["students"],
     queryFn: fetchStudents,
   });
 
+  const sessionsQuery = useQuery({
+    queryKey: ["academic-sessions"],
+    queryFn: fetchSessions,
+    enabled: isTeacher,
+  });
+
+  const classesQuery = useQuery({
+    queryKey: ["academic-classes"],
+    queryFn: fetchClasses,
+    enabled: isTeacher,
+  });
+
+  const assignmentsQuery = useQuery({
+    queryKey: ["teacher-assignments"],
+    queryFn: fetchTeacherAssignments,
+    enabled: isTeacher,
+  });
+
+
+  const assignedClassIds = new Set(
+    (assignmentsQuery.data ?? []).map((assignment) => assignment.school_class_id),
+  );
+
+  const assignedClasses = (classesQuery.data ?? []).filter((schoolClass) =>
+    assignedClassIds.has(schoolClass.id),
+  );
+
   const createMutation = useMutation({
-    mutationFn: (payload: StudentPayload) => createStudent(payload),
+    mutationFn: async (payload: StudentPayload) => {
+      const student = await createStudent(payload);
+
+      if (isTeacher) {
+        await createStudentEnrollment({
+          student_id: student.id,
+          school_class_id: Number(selectedClassId),
+          academic_session_id: Number(selectedSessionId),
+        });
+      }
+
+      return student;
+    },
     onSuccess: () => {
       setAdmissionNumber("");
       setFirstName("");
@@ -40,13 +92,21 @@ export function StudentsPage() {
       setGuardianName("");
       setGuardianPhone("");
       setAddress("");
+      setPassword("");
+      setSelectedSessionId("");
+      setSelectedClassId("");
 
       queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["student-enrollments"] });
     },
   });
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isTeacher && (!selectedSessionId || !selectedClassId)) {
+      return;
+    }
 
     createMutation.mutate({
       admission_number: admissionNumber.trim(),
@@ -58,6 +118,7 @@ export function StudentsPage() {
       guardian_name: guardianName.trim() || null,
       guardian_phone: guardianPhone.trim() || null,
       address: address.trim() || null,
+      password: password.trim() || undefined,
     });
   }
 
@@ -71,10 +132,14 @@ export function StudentsPage() {
           >
             ← Back to Dashboard
           </Link>
-          <p className="text-sm font-medium text-slate-500">People Management</p>
+          <p className="text-sm font-medium text-slate-500">
+            People Management
+          </p>
           <h1 className="mt-1 text-3xl font-bold text-slate-900">Students</h1>
           <p className="mt-2 text-slate-600">
-            Add and manage the students enrolled in your school.
+            {isTeacher
+              ? "Create students and enroll them in classes you are assigned to."
+              : "Add and manage the students enrolled in your school."}
           </p>
         </header>
 
@@ -170,6 +235,50 @@ export function StudentsPage() {
               />
             </label>
 
+            {isTeacher && (
+              <>
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">
+                    Academic session
+                  </span>
+                  <select
+                    required
+                    value={selectedSessionId}
+                    onChange={(event) =>
+                      setSelectedSessionId(event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  >
+                    <option value="">Select session</option>
+                    {sessionsQuery.data?.map((session) => (
+                      <option key={session.id} value={session.id}>
+                        {session.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">
+                    Assigned class
+                  </span>
+                  <select
+                    required
+                    value={selectedClassId}
+                    onChange={(event) => setSelectedClassId(event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  >
+                    <option value="">Select assigned class</option>
+                    {assignedClasses.map((schoolClass) => (
+                      <option key={schoolClass.id} value={schoolClass.id}>
+                        {schoolClass.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+
             <label className="block">
               <span className="text-sm font-medium text-slate-700">
                 Guardian name
@@ -194,6 +303,20 @@ export function StudentsPage() {
               />
             </label>
 
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">
+                Student portal password
+              </span>
+              <input
+                type="password"
+                minLength={8}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                placeholder="Optional — enables student login"
+              />
+            </label>
+
             <label className="block md:col-span-2">
               <span className="text-sm font-medium text-slate-700">
                 Address
@@ -210,31 +333,51 @@ export function StudentsPage() {
             <div className="md:col-span-2">
               <button
                 type="submit"
-                disabled={createMutation.isPending}
+                disabled={
+                  createMutation.isPending ||
+                  (isTeacher &&
+                    (!selectedSessionId ||
+                      !selectedClassId ||
+                      assignmentsQuery.isLoading))
+                }
                 className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {createMutation.isPending ? "Creating..." : "Add student"}
+                {createMutation.isPending
+                  ? isTeacher
+                    ? "Creating and enrolling..."
+                    : "Creating..."
+                  : isTeacher
+                    ? "Create and enroll student"
+                    : "Add student"}
               </button>
 
               {createMutation.isSuccess && (
                 <p className="mt-3 text-sm text-green-700">
-                  Student created successfully.
+                  {isTeacher
+                    ? "Student created and enrolled successfully."
+                    : "Student created successfully."}
                 </p>
               )}
 
               {createMutation.isError && (
                 <p className="mt-3 text-sm text-red-700">
-                  Unable to create student. Please check the information and
-                  try again.
+                  Unable to create or enroll student. Please check the
+                  information and try again.
                 </p>
               )}
             </div>
           </form>
+
+          {isTeacher && !assignmentsQuery.isLoading && assignedClasses.length === 0 && (
+            <p className="mt-4 text-sm text-amber-700">
+              You are not currently assigned to any classes.
+            </p>
+          )}
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-slate-900">
-            Existing students
+            {isTeacher ? "Your students" : "Existing students"}
           </h2>
 
           {studentsQuery.isLoading && (

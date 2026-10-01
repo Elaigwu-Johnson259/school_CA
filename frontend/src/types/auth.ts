@@ -2,7 +2,7 @@ export type UserRole = "SUPER_ADMIN" | "SCHOOL_ADMIN" | "TEACHER" | "STUDENT";
 
 export interface AuthenticatedUser {
   id: number;
-  email: string;
+  email: string | null;
   role: UserRole;
   school_id: number | null;
   is_active: boolean;
