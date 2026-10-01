@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createSession,
@@ -79,6 +79,12 @@ export function AcademicSessionsPage() {
     <div className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="mx-auto max-w-5xl space-y-6">
         <div>
+          <Link
+            to="/dashboard"
+            className="mb-4 inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900"
+          >
+            ← Back to Dashboard
+          </Link>
           <p className="text-sm font-medium text-slate-500">
             Academic Management
           </p>

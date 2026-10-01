@@ -65,6 +65,12 @@ export function StudentsPage() {
     <main className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-8">
         <header>
+          <Link
+            to="/dashboard"
+            className="mb-4 inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900"
+          >
+            ← Back to Dashboard
+          </Link>
           <p className="text-sm font-medium text-slate-500">People Management</p>
           <h1 className="mt-1 text-3xl font-bold text-slate-900">Students</h1>
           <p className="mt-2 text-slate-600">
