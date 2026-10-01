@@ -79,6 +79,16 @@ export function DashboardPage() {
                 Manage school years and current session
               </span>
             </Link>
+
+            <Link
+              to="/students"
+              className="block rounded-md border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Students
+              <span className="mt-1 block text-xs font-normal text-slate-400">
+                Add and manage students
+              </span>
+            </Link>
           </div>
         )}
 

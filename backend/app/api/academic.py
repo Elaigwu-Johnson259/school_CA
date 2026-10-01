@@ -27,6 +27,7 @@ from app.schemas.academic_structure import (
 )
 from app.schemas.people import (
     StudentCreate,
+    StudentUpdate,
     StudentRead,
     StudentEnrollmentCreate,
     StudentEnrollmentRead,
@@ -459,7 +460,7 @@ def get_student(
 )
 def update_student(
     student_id: int,
-    payload: StudentCreate,
+    payload: StudentUpdate,
     current_user: User = Depends(
         require_roles(UserRole.SCHOOL_ADMIN, UserRole.SUPER_ADMIN)
     ),

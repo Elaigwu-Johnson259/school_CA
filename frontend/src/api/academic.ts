@@ -1,5 +1,5 @@
 import { apiClient } from "./client";
-import type { AcademicSession, Term } from "@/types/academic";
+import type { AcademicSession, SchoolClass, Term } from "@/types/academic";
 import type { TermName } from "@/types/enums";
 
 export async function fetchSessions(): Promise<AcademicSession[]> {
@@ -68,5 +68,10 @@ export async function updateTerm(
     `/academic/terms/${termId}`,
     updates,
   );
+  return response.data;
+}
+
+export async function fetchClasses(): Promise<SchoolClass[]> {
+  const response = await apiClient.get<SchoolClass[]>("/academic/classes");
   return response.data;
 }

@@ -42,6 +42,18 @@ class StudentCreate(StudentBase):
     pass
 
 
+class StudentUpdate(BaseModel):
+    admission_number: Optional[str] = None
+    first_name: Optional[str] = None
+    middle_name: Optional[str] = None
+    last_name: Optional[str] = None
+    gender: Optional[Gender] = None
+    date_of_birth: Optional[date] = None
+    guardian_name: Optional[str] = None
+    guardian_phone: Optional[str] = None
+    address: Optional[str] = None
+
+
 class StudentRead(StudentBase):
     model_config = ConfigDict(from_attributes=True)
 

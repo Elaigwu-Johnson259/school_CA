@@ -17,3 +17,10 @@ export interface Term {
   end_date: string | null;
   created_at: string;
 }
+
+export interface SchoolClass {
+  id: number;
+  school_id: number;
+  name: string;
+  created_at: string;
+}
