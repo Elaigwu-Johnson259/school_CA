@@ -12,6 +12,11 @@ from app.models.people import Teacher, Student, TeacherAssignment, StudentClass
 from app.models.assessment import AssessmentType, Score, GradingScale
 from app.models.result import Result, ReportCard
 from app.models.audit import AuditLog
+from app.models.examination import (
+    Examination, ExaminationQuestion, QuestionReferenceMaterial, ExaminationFile,
+    StudentExaminationScript, StudentQuestionAnswer, ExaminationStatus, QuestionType,
+    ReferenceMaterialType, ExaminationFileType, ScriptStatus, ReviewStatus,
+)
 
 __all__ = [
     "School",
@@ -32,4 +37,16 @@ __all__ = [
     "Result",
     "ReportCard",
     "AuditLog",
+    "Examination",
+    "ExaminationQuestion",
+    "QuestionReferenceMaterial",
+    "ExaminationFile",
+    "StudentExaminationScript",
+    "StudentQuestionAnswer",
+    "ExaminationStatus",
+    "QuestionType",
+    "ReferenceMaterialType",
+    "ExaminationFileType",
+    "ScriptStatus",
+    "ReviewStatus",
 ]

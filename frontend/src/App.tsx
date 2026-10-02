@@ -12,6 +12,7 @@ import { StudentDetailsPage } from "@/pages/StudentDetailsPage";
 import { ScoresPage } from "@/pages/ScoresPage";
 import { StudentResultPage } from "@/pages/StudentResultPage";
 import { TeachersPage } from "@/pages/TeachersPage";
+import { ExaminationsPage } from "@/pages/ExaminationsPage";
 
 /**
  * Routing so far: login → protected dashboard → logout, public school
@@ -77,6 +78,14 @@ function App() {
           element={
             <ProtectedRoute roles={["SCHOOL_ADMIN", "TEACHER", "SUPER_ADMIN"]}>
               <StudentDetailsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/examinations"
+          element={
+            <ProtectedRoute roles={["SCHOOL_ADMIN", "TEACHER", "SUPER_ADMIN"]}>
+              <ExaminationsPage />
             </ProtectedRoute>
           }
         />
