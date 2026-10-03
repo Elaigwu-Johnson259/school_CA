@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Optional
 
 from fastapi import HTTPException
@@ -185,7 +186,7 @@ def validate_score_context(db: Session, current_user: User, student_id: int, sub
 def create_score(db: Session, current_user: User, student_id: int, subject_id: int, school_class_id: int, term_id: int, assessment_type_id: int, value: float) -> Score:
     if current_user.role not in {UserRole.TEACHER, UserRole.SUPER_ADMIN}:
         raise HTTPException(status_code=403, detail="Only teachers can record scores")
-    if value < 0:
+    if not math.isfinite(value) or value < 0:
         raise HTTPException(status_code=400, detail="Score cannot be negative")
     _, _, _, _, assessment_type = validate_score_context(
         db, current_user, student_id, subject_id, school_class_id, term_id, assessment_type_id
@@ -243,7 +244,7 @@ def update_score(db: Session, current_user: User, score_id: int, value: float) -
         db, current_user, score.student_id, score.subject_id, score.school_class_id,
         score.term_id, score.assessment_type_id,
     )
-    if value < 0:
+    if not math.isfinite(value) or value < 0:
         raise HTTPException(status_code=400, detail="Score cannot be negative")
     if value > float(score.assessment_type.max_score):
         raise HTTPException(status_code=400, detail=f"Score cannot exceed maximum of {score.assessment_type.max_score}")

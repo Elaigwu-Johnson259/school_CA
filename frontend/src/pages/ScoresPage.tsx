@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,6 +17,7 @@ import {
 import { fetchStudentEnrollments, fetchStudents } from "@/api/students";
 import { useAuth } from "@/context/AuthContext";
 import type { Result } from "@/api/academic";
+import { PageHeading, Notice } from "@/components/AcademicUI";
 
 export function ScoresPage() {
   const { user } = useAuth();
@@ -25,6 +26,7 @@ export function ScoresPage() {
   const [termId, setTermId] = useState("");
   const [classId, setClassId] = useState("");
   const [subjectId, setSubjectId] = useState("");
+  const [activeAssessmentId, setActiveAssessmentId] = useState("");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -116,6 +118,13 @@ export function ScoresPage() {
     () => [...(assessmentQuery.data ?? [])].sort((a, b) => a.display_order - b.display_order),
     [assessmentQuery.data],
   );
+  useEffect(() => {
+    if (!assessments.length) return;
+    if (!assessments.some((assessment) => String(assessment.id) === activeAssessmentId)) {
+      setActiveAssessmentId(String(assessments[0].id));
+    }
+  }, [activeAssessmentId, assessments]);
+  const activeAssessment = assessments.find((assessment) => String(assessment.id) === activeAssessmentId);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -176,17 +185,18 @@ export function ScoresPage() {
 
   function setScore(studentId: number, assessmentId: number, value: string) {
     const assessment = assessments.find((item) => item.id === assessmentId);
+    setDrafts((current) => ({ ...current, [`${studentId}:${assessmentId}`]: value }));
 
     if (value !== "" && assessment) {
       const numericValue = Number(value);
 
       if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > assessment.max_score) {
         setError(`${assessment.name} must be between 0 and ${assessment.max_score}.`);
+        setMessage("");
         return;
       }
     }
 
-    setDrafts((current) => ({ ...current, [`${studentId}:${assessmentId}`]: value }));
     setMessage("");
     setError("");
   }
@@ -196,12 +206,7 @@ export function ScoresPage() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <header>
-          <Link to="/dashboard" className="inline-flex text-sm font-medium text-slate-600 hover:text-slate-900">← Back to Dashboard</Link>
-          <p className="mt-5 text-sm font-medium text-slate-500">Academic scoring</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-900">CA & Exam Scores</h1>
-          <p className="mt-2 text-slate-600">Enter the actual marks awarded. CA totals, totals, grades and positions are calculated by the system.</p>
-        </header>
+        <PageHeading eyebrow="MANUAL SCORE ENTRY" title="CA & Exam scores" description="Enter scores by assigned class and subject. CA totals, grades and class positions recalculate through the normal result service." actions={<Link to="/dashboard" className="academic-small-action"><span className="material-symbols-outlined" aria-hidden="true">arrow_back</span>Dashboard</Link>} />
 
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="grid gap-4 md:grid-cols-4">
@@ -213,15 +218,45 @@ export function ScoresPage() {
         </section>
 
         {canShowTable && (
-          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <section className="academic-surface-panel space-y-4">
+            <div className="academic-assessment-strip" role="tablist" aria-label="Assessment type">
+              {assessments.map((assessment) => <button key={assessment.id} type="button" role="tab" aria-selected={activeAssessmentId === String(assessment.id)} onClick={() => setActiveAssessmentId(String(assessment.id))} className={`academic-assessment-tab${activeAssessmentId === String(assessment.id) ? " is-active" : ""}`}><strong>{assessment.name}</strong><small>Max {assessment.max_score}</small></button>)}
+            </div>
+            <Notice tone="info" icon="info">Scores entered here update the existing <strong>Score</strong> record and recalculate subject totals, subject position, and overall class position after saving.</Notice>
+            <div className="academic-progress-panel">
+              <div><strong>{scoresQuery.data?.length ?? 0}</strong><span> / {students.length * assessments.length} component scores recorded</span><small>{activeAssessment?.name ?? "Assessment"} · maximum {activeAssessment?.max_score ?? "—"}</small></div>
+              <div className="academic-progress-track" aria-label={`${scoresQuery.data?.length ?? 0} scores recorded`}><span style={{ width: `${students.length * assessments.length ? Math.min(100, ((scoresQuery.data?.length ?? 0) / (students.length * assessments.length)) * 100) : 0}%` }} /></div>
+            </div>
+            <div className="academic-grading-rule"><strong>GRADING MATRIX RULE</strong><p>CA1 (10) + CA2 (10) + CA3 (10) = 30 CA max <span aria-hidden="true">|</span> Exam: 70 max <span aria-hidden="true">|</span> Overall: 100</p></div>
+          </section>
+        )}
+
+        {canShowTable && (
+          <section className="academic-surface-panel overflow-hidden">
             <div className="border-b border-slate-200 px-5 py-4">
-              <h2 className="font-semibold text-slate-900">Student score entry</h2>
-              <p className="mt-1 text-xs text-slate-500">Score entry is manual. The calculated columns are read-only.</p>
+              <div className="academic-section-heading"><div><h2>Student roster</h2><p>{students.length} enrolled in this class · {activeAssessment?.name ?? "Select an assessment"}</p></div><span className="academic-status-badge tone-info"><span className="academic-status-dot" />{activeAssessment?.max_score ?? "—"} maximum marks</span></div>
             </div>
             {students.length === 0 ? (
               <p className="p-6 text-sm text-slate-500">No students are enrolled in this class for the selected session.</p>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="academic-mobile-roster">
+                {students.map((student) => {
+                  const assessment = activeAssessment;
+                  if (!assessment) return null;
+                  const raw = scoreValue(student.id, assessment.id);
+                  const invalid = raw.trim() !== "" && (!Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > assessment.max_score);
+                  const result = resultMap.get(student.id);
+                  const ca = assessments.filter((item) => item.category === "CA").reduce((sum, item) => sum + Number(scoreValue(student.id, item.id) || 0), 0);
+                  const exam = assessments.filter((item) => item.category === "EXAM").reduce((sum, item) => sum + Number(scoreValue(student.id, item.id) || 0), 0);
+                  return <article key={student.id} className={`academic-roster-card${invalid ? " is-invalid" : ""}`}>
+                    <div className="academic-roster-student"><span className="academic-student-initials">{student.first_name[0]}{student.last_name[0]}</span><span><strong>{student.first_name} {student.last_name}</strong><small>ADM: {student.admission_number}</small></span><label className="academic-roster-score"><span className="sr-only">{assessment.name} score for {student.first_name} {student.last_name}</span><input type="number" min="0" max={assessment.max_score} step="0.01" value={raw} onChange={(event) => setScore(student.id, assessment.id, event.target.value)} /></label></div>
+                    <div className="academic-roster-summary"><span>CA Total <strong>{ca}/30</strong></span><span>Overall <strong>{result?.total ?? (ca + exam)}/100</strong></span><span>Grade <strong>{result?.grade ?? "—"}</strong></span><span>Subject Position <strong>{result?.subject_position ? ordinal(result.subject_position) : "—"}</strong></span></div>
+                    {invalid && <p className="academic-row-error"><span className="material-symbols-outlined" aria-hidden="true">warning</span>{assessment.name} maximum score is {assessment.max_score}. Value {raw || "—"} is invalid.</p>}
+                  </article>;
+                })}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr>
@@ -230,7 +265,7 @@ export function ScoresPage() {
                       <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-slate-500">CA Total /30</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-slate-500">Total /100</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-slate-500">Grade</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-slate-500">Position</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-slate-500">Subject Position</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -241,7 +276,7 @@ export function ScoresPage() {
                       return (
                         <tr key={student.id}>
                           <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-900">{student.first_name} {student.last_name}<span className="block text-xs font-normal text-slate-500">{student.admission_number}</span></td>
-                          {assessments.map((assessment) => <td key={assessment.id} className="px-3 py-3"><input type="number" min={0} max={assessment.max_score} step="0.01" value={scoreValue(student.id, assessment.id)} onChange={(e) => setScore(student.id, assessment.id, e.target.value)} className="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-sm" /></td>)}
+                          {assessments.map((assessment) => { const raw = scoreValue(student.id, assessment.id); const invalid = raw.trim() !== "" && (!Number.isFinite(Number(raw)) || Number(raw) < 0 || Number(raw) > assessment.max_score); return <td key={assessment.id} className="px-3 py-3"><input aria-label={`${assessment.name} score for ${student.first_name} ${student.last_name}`} type="number" min={0} max={assessment.max_score} step="0.01" value={raw} onChange={(e) => setScore(student.id, assessment.id, e.target.value)} className={`w-24 rounded border px-2 py-1.5 text-sm tabular-nums ${invalid ? "border-red-500 bg-red-50 text-red-700" : "border-slate-300"}`} />{invalid && <span className="block max-w-28 text-[10px] text-red-700">Max {assessment.max_score}</span>}</td>; })}
                           <td className="px-3 py-3 text-sm font-semibold text-slate-700">{ca}/30</td>
                           <td className="px-3 py-3 text-sm font-semibold text-slate-900">{result?.total ?? (ca + exam)}/100</td>
                           <td className="px-3 py-3 text-sm font-semibold text-slate-700">{result?.grade ?? "—"}</td>
@@ -252,6 +287,7 @@ export function ScoresPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
             <div className="flex items-center justify-between border-t border-slate-200 px-5 py-4">
               <div>{error && <p className="text-sm text-red-700">{error}</p>}{message && <p className="text-sm text-green-700">{message}</p>}</div>

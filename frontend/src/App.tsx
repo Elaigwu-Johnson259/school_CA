@@ -13,6 +13,7 @@ import { ScoresPage } from "@/pages/ScoresPage";
 import { StudentResultPage } from "@/pages/StudentResultPage";
 import { TeachersPage } from "@/pages/TeachersPage";
 import { ExaminationsPage } from "@/pages/ExaminationsPage";
+import { AIMarkingPage } from "@/pages/AIMarkingPage";
 
 /**
  * Routing so far: login → protected dashboard → logout, public school
@@ -86,6 +87,14 @@ function App() {
           element={
             <ProtectedRoute roles={["SCHOOL_ADMIN", "TEACHER", "SUPER_ADMIN"]}>
               <ExaminationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-marking"
+          element={
+            <ProtectedRoute roles={["SCHOOL_ADMIN", "TEACHER", "SUPER_ADMIN"]}>
+              <AIMarkingPage />
             </ProtectedRoute>
           }
         />

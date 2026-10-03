@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer
 
 from app.schemas.user import UserRead
 
@@ -34,6 +34,10 @@ class SchoolRead(SchoolBase):
     stamp_path: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("logo_path")
+    def serialize_logo_path(self, value: Optional[str]) -> Optional[str]:
+        return "/api/schools/me/logo" if value else None
 
 
 class SchoolUpdate(BaseModel):

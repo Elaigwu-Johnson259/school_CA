@@ -147,3 +147,22 @@ def test_super_admin_cannot_update_via_me(client, db_session):
     response = client.patch("/api/schools/me", headers=_auth(token), json={"motto": "Nope"})
 
     assert response.status_code == 403
+
+
+def test_school_logo_upload_is_tenant_scoped_and_does_not_expose_storage_path(client, db_session, monkeypatch, tmp_path):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "LOCAL_STORAGE_PATH", str(tmp_path))
+    school_a = _make_school(db_session, "School A", "logo-a@example.com")
+    school_b = _make_school(db_session, "School B", "logo-b@example.com")
+    _make_user(db_session, email="logo-admin@example.com", password="pass1234", role=UserRole.SCHOOL_ADMIN, school=school_a)
+    token = _login(client, "logo-admin@example.com", "pass1234")
+    png = b"\x89PNG\r\n\x1a\n" + b"test-logo"
+
+    uploaded = client.post("/api/schools/me/logo", headers=_auth(token), files={"file": ("logo.png", png, "image/png")})
+    assert uploaded.status_code == 200, uploaded.text
+    assert uploaded.json()["logo_path"] == "/api/schools/me/logo"
+    assert str(tmp_path) not in uploaded.text
+    assert client.get("/api/schools/me/logo", headers=_auth(token)).content == png
+
+    db_session.refresh(school_b)
+    assert school_b.logo_path is None

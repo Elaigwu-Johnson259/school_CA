@@ -8,6 +8,7 @@ error instead of failing mysteriously later.
 """
 from typing import List
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,7 +31,25 @@ class Settings(BaseSettings):
     LOCAL_STORAGE_PATH: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 5
 
+    # AI / OCR provider configuration
+    AI_PROVIDER: str = "mock"
+    AI_MODEL: str = "gpt-4o-mini"
+    AI_API_KEY: str | None = None
+    OPENAI_API_KEY: str | None = None
+    OPENAI_MODEL: str | None = None
+    OPENAI_BASE_URL: str | None = None
+    AI_BASE_URL: str | None = None
+
     model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_production_ai_provider(self):
+        if self.ENVIRONMENT.lower() == "production":
+            if self.AI_PROVIDER.lower() != "openai":
+                raise ValueError("Production requires AI_PROVIDER=openai; mock marking is test-only.")
+            if not (self.OPENAI_API_KEY or self.AI_API_KEY):
+                raise ValueError("Production OpenAI marking requires OPENAI_API_KEY or AI_API_KEY.")
+        return self
 
 
 settings = Settings()

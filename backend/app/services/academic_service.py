@@ -364,6 +364,21 @@ def list_class_subjects(
         teacher = get_teacher_for_user(db, current_user)
         if not has_teacher_class_assignment(db, teacher.id, school_class.id):
             raise HTTPException(status_code=403, detail="You are not assigned to this class")
+        return (
+            db.query(ClassSubject)
+            .join(Subject, Subject.id == ClassSubject.subject_id)
+            .join(
+                TeacherAssignment,
+                (TeacherAssignment.school_class_id == ClassSubject.school_class_id)
+                & (TeacherAssignment.subject_id == ClassSubject.subject_id),
+            )
+            .filter(
+                ClassSubject.school_class_id == school_class.id,
+                TeacherAssignment.teacher_id == teacher.id,
+            )
+            .distinct()
+            .all()
+        )
 
     return (
         db.query(ClassSubject)

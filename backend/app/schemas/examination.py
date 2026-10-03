@@ -21,7 +21,7 @@ class ExaminationBase(BaseModel):
     instructions: Optional[str] = None
     examination_date: Optional[date] = None
     duration_minutes: Optional[int] = Field(default=None, gt=0)
-    maximum_score: float = Field(gt=0)
+    maximum_score: float = Field(gt=0, allow_inf_nan=False)
     status: ExaminationStatus = ExaminationStatus.DRAFT
 
 
@@ -35,7 +35,7 @@ class ExaminationUpdate(BaseModel):
     instructions: Optional[str] = None
     examination_date: Optional[date] = None
     duration_minutes: Optional[int] = Field(default=None, gt=0)
-    maximum_score: Optional[float] = Field(default=None, gt=0)
+    maximum_score: Optional[float] = Field(default=None, gt=0, allow_inf_nan=False)
     status: Optional[ExaminationStatus] = None
 
 
@@ -53,7 +53,7 @@ class QuestionBase(BaseModel):
     section: Optional[str] = Field(default=None, max_length=100)
     question_text: str = Field(min_length=1)
     question_type: QuestionType
-    maximum_marks: float = Field(gt=0)
+    maximum_marks: float = Field(gt=0, allow_inf_nan=False)
     display_order: int = Field(ge=0)
     instructions: Optional[str] = None
     correct_option: Optional[str] = Field(default=None, max_length=50)
@@ -74,7 +74,7 @@ class QuestionUpdate(BaseModel):
     section: Optional[str] = Field(default=None, max_length=100)
     question_text: Optional[str] = Field(default=None, min_length=1)
     question_type: Optional[QuestionType] = None
-    maximum_marks: Optional[float] = Field(default=None, gt=0)
+    maximum_marks: Optional[float] = Field(default=None, gt=0, allow_inf_nan=False)
     display_order: Optional[int] = Field(default=None, ge=0)
     instructions: Optional[str] = None
     correct_option: Optional[str] = Field(default=None, max_length=50)
@@ -101,7 +101,6 @@ class ReferenceMaterialRead(BaseModel):
     material_type: ReferenceMaterialType
     title: Optional[str] = None
     text_content: Optional[str] = None
-    original_file_path: Optional[str] = None
     original_filename: Optional[str] = None
     content_type: Optional[str] = None
     file_size: Optional[int] = None
@@ -135,10 +134,11 @@ class ScriptRead(BaseModel):
     school_id: int
     examination_id: int
     student_id: int
-    original_file_path: str
+    assessment_type_id: Optional[int] = None
     original_filename: str
     content_type: Optional[str] = None
     file_size: Optional[int] = None
+    checksum_sha256: Optional[str] = None
     status: ScriptStatus
     processing_error: Optional[str] = None
     processed_at: Optional[datetime] = None
@@ -179,10 +179,12 @@ class StudentAnswerRead(BaseModel):
 
 
 class MarkReviewUpdate(BaseModel):
-    teacher_final_score: float = Field(ge=0)
+    teacher_final_score: float = Field(ge=0, allow_inf_nan=False)
     teacher_review_notes: Optional[str] = None
+    extracted_text: Optional[str] = None
     review_status: ReviewStatus = ReviewStatus.REVIEWED
 
 
 class ApproveScriptRequest(BaseModel):
-    confirm: bool = True
+    confirm: bool
+    assessment_type_id: Optional[int] = None

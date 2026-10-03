@@ -9,11 +9,16 @@ README's Phase 5 section.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.tenancy import ensure_same_school, get_current_school, require_school_role
 from app.models.enums import UserRole
 from app.models.school import School
@@ -76,6 +81,48 @@ def get_my_school(school: School = Depends(get_current_school)) -> School:
     accounts (SCHOOL_ADMIN/TEACHER/STUDENT) — a SUPER_ADMIN has no single
     "home" school and gets 403 here (see get_current_school).
     """
+    return school
+
+
+@router.get("/me/logo")
+def get_my_school_logo(school: School = Depends(get_current_school)):
+    if not school.logo_path or not Path(school.logo_path).is_file():
+        raise HTTPException(status_code=404, detail="School logo not found")
+    extension = Path(school.logo_path).suffix.lower()
+    media_type = "image/png" if extension == ".png" else "image/jpeg"
+    return FileResponse(school.logo_path, media_type=media_type)
+
+
+@router.post("/me/logo", response_model=SchoolRead)
+def upload_my_school_logo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_school_role(UserRole.SCHOOL_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    extension_by_type = {"image/png": ".png", "image/jpeg": ".jpg"}
+    extension = extension_by_type.get((file.content_type or "").lower())
+    if extension is None:
+        raise HTTPException(status_code=415, detail="School logo must be a PNG or JPEG image")
+    content = file.file.read(settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024 + 1)
+    if len(content) > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB} MB limit")
+    valid = content.startswith(b"\x89PNG\r\n\x1a\n") if extension == ".png" else content.startswith(b"\xff\xd8\xff")
+    if not valid:
+        raise HTTPException(status_code=415, detail="Uploaded file content is not a valid PNG or JPEG")
+    school = db.get(School, current_user.school_id)
+    if school is None:
+        raise HTTPException(status_code=404, detail="School not found")
+    logo_directory = Path(settings.LOCAL_STORAGE_PATH) / "schools" / str(school.id) / "branding"
+    target = logo_directory / f"{uuid.uuid4().hex}{extension}"
+    try:
+        logo_directory.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+    except OSError as exc:
+        target.unlink(missing_ok=True)
+        raise HTTPException(status_code=503, detail="File storage is unavailable") from exc
+    school.logo_path = str(target)
+    db.commit()
+    db.refresh(school)
     return school
 
 

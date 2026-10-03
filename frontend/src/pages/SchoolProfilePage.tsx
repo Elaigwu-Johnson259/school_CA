@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { fetchMySchool, updateMySchool } from "@/api/schools";
+import { fetchMySchool, fetchMySchoolLogo, updateMySchool, uploadMySchoolLogo } from "@/api/schools";
 import type { SchoolUpdateRequest } from "@/types/schoolRegistration";
 
 const EDITABLE_FIELDS: Array<{ key: keyof SchoolUpdateRequest; label: string }> = [
@@ -38,6 +38,8 @@ export function SchoolProfilePage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState("");
 
   useEffect(() => {
     if (school) {
@@ -55,6 +57,19 @@ export function SchoolProfilePage() {
     }
   }, [school]);
 
+  useEffect(() => {
+    let objectUrl = "";
+    if (school?.logo_path) {
+      fetchMySchoolLogo().then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        setLogoPreview(objectUrl);
+      }).catch(() => setLogoPreview(""));
+    } else {
+      setLogoPreview("");
+    }
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [school?.logo_path]);
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSaveError(null);
@@ -68,6 +83,20 @@ export function SchoolProfilePage() {
       setSaveError("Couldn't save your changes. Please try again.");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleLogoUpload() {
+    if (!logoFile) return;
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      const updated = await uploadMySchoolLogo(logoFile);
+      queryClient.setQueryData(["my-school"], updated);
+      setLogoFile(null);
+      setSaveMessage("School logo updated.");
+    } catch (error: any) {
+      setSaveError(error?.response?.data?.detail ?? "Couldn't upload the school logo.");
     }
   }
 
@@ -101,6 +130,11 @@ export function SchoolProfilePage() {
 
         {school && (
           <form onSubmit={handleSubmit} className="space-y-3">
+            <section className="rounded-md border border-slate-200 p-3">
+              <p className="text-sm font-medium text-slate-700">School logo</p>
+              {logoPreview && <img src={logoPreview} alt={`${school.name} logo`} className="mt-2 h-16 max-w-48 object-contain" />}
+              {isSchoolAdmin && <><input type="file" accept="image/png,image/jpeg" onChange={(event) => setLogoFile(event.target.files?.[0] ?? null)} className="mt-2 block w-full text-sm" /><button type="button" disabled={!logoFile} onClick={handleLogoUpload} className="mt-2 rounded-md border border-slate-300 px-3 py-2 text-sm disabled:opacity-50">Upload logo</button></>}
+            </section>
             {EDITABLE_FIELDS.map(({ key, label }) => (
               <div key={key} className="space-y-1">
                 <label htmlFor={key} className="text-sm font-medium text-slate-700">

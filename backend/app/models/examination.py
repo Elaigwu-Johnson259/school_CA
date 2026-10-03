@@ -148,14 +148,16 @@ class ExaminationFile(Base, TimestampMixin):
 class StudentExaminationScript(Base, TimestampMixin):
     __tablename__ = "student_examination_scripts"
     __table_args__ = (
-        UniqueConstraint("examination_id", "student_id", name="uq_exam_student_script"),
+        UniqueConstraint("examination_id", "student_id", "assessment_type_id", name="uq_exam_student_assessment_script"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     school_id: Mapped[int] = mapped_column(ForeignKey("schools.id", ondelete="CASCADE"), nullable=False, index=True)
     examination_id: Mapped[int] = mapped_column(ForeignKey("examinations.id", ondelete="CASCADE"), nullable=False, index=True)
     student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    assessment_type_id: Mapped[Optional[int]] = mapped_column(ForeignKey("assessment_types.id", ondelete="SET NULL"), nullable=True, index=True)
     original_file_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    checksum_sha256: Mapped[Optional[str]] = mapped_column(String(64))
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     content_type: Mapped[Optional[str]] = mapped_column(String(120))
     file_size: Mapped[Optional[int]] = mapped_column(Integer)
@@ -167,6 +169,7 @@ class StudentExaminationScript(Base, TimestampMixin):
 
     examination: Mapped["Examination"] = relationship(back_populates="scripts")
     student: Mapped["Student"] = relationship()
+    assessment_type: Mapped[Optional["AssessmentType"]] = relationship()
     answers: Mapped[List["StudentQuestionAnswer"]] = relationship(back_populates="script", cascade="all, delete-orphan")
 
 

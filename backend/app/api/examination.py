@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
@@ -14,6 +15,7 @@ from app.schemas.examination import (
     ReferenceMaterialCreate, ReferenceMaterialRead, ScriptRead, StudentAnswerCreate, StudentAnswerRead,
 )
 from app.services import examination_service
+from app.services.ai_marking_service import process_ai_marking
 
 router = APIRouter(prefix="/api/academic", tags=["examinations"])
 
@@ -58,6 +60,12 @@ def list_references(question_id: int, current_user: User = Depends(get_current_u
     return examination_service.list_references(db, current_user, question_id)
 
 
+@router.get("/references/{reference_id}/file")
+def get_reference_file(reference_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    material = examination_service.get_reference_file(db, current_user, reference_id)
+    return FileResponse(material.original_file_path, media_type=material.content_type or "application/octet-stream", filename=material.original_filename or "reference")
+
+
 @router.post("/questions/{question_id}/references", response_model=ReferenceMaterialRead, status_code=status.HTTP_201_CREATED)
 def create_reference(question_id: int, payload: ReferenceMaterialCreate, current_user: User = Depends(require_roles(UserRole.SCHOOL_ADMIN, UserRole.TEACHER, UserRole.SUPER_ADMIN)), db: Session = Depends(get_db)):
     return examination_service.create_text_reference(db, current_user, question_id, payload)
@@ -96,16 +104,23 @@ def list_scripts(exam_id: int, current_user: User = Depends(get_current_user), d
 def upload_script(
     exam_id: int,
     student_id: int = Form(...),
+    assessment_type_id: int = Form(...),
     file: UploadFile = File(...),
     current_user: User = Depends(require_roles(UserRole.SCHOOL_ADMIN, UserRole.TEACHER, UserRole.SUPER_ADMIN)),
     db: Session = Depends(get_db),
 ):
-    return examination_service.upload_script(db, current_user, exam_id, student_id, file)
+    return examination_service.upload_script(db, current_user, exam_id, student_id, file, assessment_type_id=assessment_type_id)
 
 
 @router.get("/scripts/{script_id}/answers", response_model=list[StudentAnswerRead])
 def list_answers(script_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return examination_service.list_answers(db, current_user, script_id)
+
+
+@router.get("/scripts/{script_id}/file")
+def get_script_file(script_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    script = examination_service.get_script_file(db, current_user, script_id)
+    return FileResponse(script.original_file_path, media_type=script.content_type or "application/octet-stream", filename=script.original_filename)
 
 
 @router.post("/scripts/{script_id}/answers", response_model=StudentAnswerRead, status_code=status.HTTP_201_CREATED)
@@ -122,4 +137,9 @@ def review_answer(answer_id: int, payload: MarkReviewUpdate, current_user: User 
 def approve_script(script_id: int, payload: ApproveScriptRequest, current_user: User = Depends(require_roles(UserRole.SCHOOL_ADMIN, UserRole.TEACHER, UserRole.SUPER_ADMIN)), db: Session = Depends(get_db)):
     if not payload.confirm:
         raise HTTPException(status_code=400, detail="Approval confirmation is required")
-    return examination_service.approve_script(db, current_user, script_id)
+    return examination_service.approve_script(db, current_user, script_id, assessment_type_id=payload.assessment_type_id)
+
+
+@router.post("/scripts/{script_id}/ai-mark", response_model=ScriptRead)
+def mark_script_with_ai(script_id: int, current_user: User = Depends(require_roles(UserRole.SCHOOL_ADMIN, UserRole.TEACHER, UserRole.SUPER_ADMIN)), db: Session = Depends(get_db)):
+    return process_ai_marking(db, current_user, script_id)

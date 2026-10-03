@@ -7,7 +7,7 @@ from app.models.enums import AssessmentCategory
 class AssessmentTypeBase(BaseModel):
     name: str
     category: AssessmentCategory
-    max_score: float = Field(gt=0)
+    max_score: float = Field(gt=0, allow_inf_nan=False)
     display_order: int = 0
 
 class AssessmentTypeCreate(AssessmentTypeBase):
@@ -21,7 +21,7 @@ class AssessmentTypeRead(AssessmentTypeBase):
 class AssessmentTypeUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[AssessmentCategory] = None
-    max_score: Optional[float] = Field(default=None, gt=0)
+    max_score: Optional[float] = Field(default=None, gt=0, allow_inf_nan=False)
     display_order: Optional[int] = None
 
 class ScoreCreate(BaseModel):
@@ -30,10 +30,10 @@ class ScoreCreate(BaseModel):
     school_class_id: int
     term_id: int
     assessment_type_id: int
-    value: float = Field(ge=0)
+    value: float = Field(ge=0, allow_inf_nan=False)
 
 class ScoreUpdate(BaseModel):
-    value: float = Field(ge=0)
+    value: float = Field(ge=0, allow_inf_nan=False)
 
 class ScoreRead(ScoreCreate):
     model_config = ConfigDict(from_attributes=True)

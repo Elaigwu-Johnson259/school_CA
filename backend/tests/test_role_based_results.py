@@ -1,7 +1,7 @@
 from app.core.security import hash_password
 from app.models.academic import AcademicSession, Term
 from app.models.academic_structure import ClassSubject, SchoolClass, Subject
-from app.models.assessment import AssessmentType, GradingScale
+from app.models.assessment import AssessmentType, GradingScale, Score
 from app.models.enums import AssessmentCategory, TermName, UserRole
 from app.models.people import Student, StudentClass, Teacher, TeacherAssignment
 from app.models.school import School
@@ -101,3 +101,73 @@ def test_result_math_is_24_plus_61_equals_85(db_session):
     assert float(result.ca_total) == 24
     assert float(result.total) == 85
     assert result.grade == "A"
+
+
+def test_subject_positions_and_overall_class_position_recalculate_across_all_subjects(db_session):
+    from app.models.result import ReportCard, Result
+    from app.services.result_service import calculate_result
+
+    school, session, term, school_class, maths = setup_school(db_session)
+    english = Subject(school_id=school.id, name="English", code="ENG")
+    biology = Subject(school_id=school.id, name="Biology", code="BIO")
+    db_session.add_all([english, biology])
+    db_session.flush()
+    db_session.add_all([
+        ClassSubject(school_class_id=school_class.id, subject_id=english.id),
+        ClassSubject(school_class_id=school_class.id, subject_id=biology.id),
+    ])
+    teacher_user = make_user(db_session, school, "positions@example.com", "TeacherPass123!", UserRole.TEACHER)
+    teacher = Teacher(school_id=school.id, user_id=teacher_user.id, first_name="Position", last_name="Teacher")
+    students = [
+        Student(school_id=school.id, admission_number="POS001", first_name="A", last_name="Student"),
+        Student(school_id=school.id, admission_number="POS002", first_name="B", last_name="Student"),
+        Student(school_id=school.id, admission_number="POS003", first_name="C", last_name="Student"),
+    ]
+    subjects = [maths, english, biology]
+    db_session.add_all([teacher, *students])
+    db_session.flush()
+    db_session.add_all([
+        StudentClass(student_id=student.id, school_class_id=school_class.id, academic_session_id=session.id)
+        for student in students
+    ])
+    db_session.add_all([
+        TeacherAssignment(teacher_id=teacher.id, school_class_id=school_class.id, subject_id=subject.id)
+        for subject in subjects
+    ])
+    assessment_types = db_session.query(AssessmentType).filter(AssessmentType.school_id == school.id).order_by(AssessmentType.display_order).all()
+    targets = {
+        students[0].id: [85, 90, 80],
+        students[1].id: [78, 75, 78],
+        students[2].id: [72, 82, 81],
+    }
+    for subject_index, subject in enumerate(subjects):
+        for student in students:
+            target = targets[student.id][subject_index]
+            values = [10, 10, 10, target - 30]
+            for assessment, value in zip(assessment_types, values):
+                db_session.add(Score(student_id=student.id, subject_id=subject.id, school_class_id=school_class.id,
+                    term_id=term.id, assessment_type_id=assessment.id, recorded_by_id=teacher_user.id, value=value))
+    db_session.commit()
+
+    for subject in subjects:
+        for student in students:
+            calculate_result(db_session, teacher_user, student.id, subject.id, term.id)
+
+    math_positions = {row.student_id: row.subject_position for row in db_session.query(Result).filter_by(subject_id=maths.id, term_id=term.id).all()}
+    assert math_positions == {students[0].id: 1, students[1].id: 2, students[2].id: 3}
+    positions = {row.student_id: row.class_position for row in db_session.query(ReportCard).filter_by(term_id=term.id).all()}
+    assert positions == {students[0].id: 1, students[1].id: 3, students[2].id: 2}
+    assert db_session.query(ReportCard).filter_by(term_id=term.id).first().number_of_students == 3
+
+    changed_exam_score = db_session.query(Score).filter_by(
+        student_id=students[2].id, subject_id=maths.id, term_id=term.id,
+        assessment_type_id=assessment_types[3].id,
+    ).one()
+    changed_exam_score.value = 70
+    db_session.commit()
+    calculate_result(db_session, teacher_user, students[2].id, maths.id, term.id)
+
+    refreshed_positions = {row.student_id: row.class_position for row in db_session.query(ReportCard).filter_by(term_id=term.id).all()}
+    assert refreshed_positions == {students[0].id: 2, students[1].id: 3, students[2].id: 1}
+    changed_math_result = db_session.query(Result).filter_by(student_id=students[2].id, subject_id=maths.id, term_id=term.id).one()
+    assert changed_math_result.subject_position == 1

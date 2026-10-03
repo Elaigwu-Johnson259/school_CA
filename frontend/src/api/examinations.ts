@@ -50,7 +50,6 @@ export interface ReferenceMaterial {
   material_type: ReferenceMaterialType;
   title: string | null;
   text_content: string | null;
-  original_file_path: string | null;
   original_filename: string | null;
   content_type: string | null;
   file_size: number | null;
@@ -63,10 +62,11 @@ export interface StudentScript {
   school_id: number;
   examination_id: number;
   student_id: number;
-  original_file_path: string;
+  assessment_type_id: number | null;
   original_filename: string;
   content_type: string | null;
   file_size: number | null;
+  checksum_sha256: string | null;
   status: string;
   processing_error: string | null;
   processed_at: string | null;
@@ -74,6 +74,21 @@ export interface StudentScript {
   approved_by_id: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface StudentAnswer {
+  id: number;
+  script_id: number;
+  question_id: number;
+  extracted_text: string | null;
+  extraction_status: string | null;
+  ai_proposed_score: number | null;
+  ai_evidence: string | null;
+  ai_confidence: number | null;
+  teacher_final_score: number | null;
+  teacher_adjustment: number | null;
+  teacher_review_notes: string | null;
+  review_status: string;
 }
 
 export async function fetchExaminations(): Promise<Examination[]> {
@@ -133,10 +148,51 @@ export async function uploadQuestionPaper(examinationId: number, file: File): Pr
   await apiClient.post(`/academic/examinations/${examinationId}/question-paper`, form);
 }
 
-export async function uploadStudentScript(examinationId: number, studentId: number, file: File): Promise<StudentScript> {
+export async function uploadStudentScript(examinationId: number, studentId: number, assessmentTypeId: number, file: File): Promise<StudentScript> {
   const form = new FormData();
   form.append("student_id", String(studentId));
+  form.append("assessment_type_id", String(assessmentTypeId));
   form.append("file", file);
   const response = await apiClient.post<StudentScript>(`/academic/examinations/${examinationId}/scripts`, form);
+  return response.data;
+}
+
+export async function fetchStudentScripts(examinationId: number): Promise<StudentScript[]> {
+  const response = await apiClient.get<StudentScript[]>(`/academic/examinations/${examinationId}/scripts`);
+  return response.data;
+}
+
+export async function fetchScriptAnswers(scriptId: number): Promise<StudentAnswer[]> {
+  const response = await apiClient.get<StudentAnswer[]>(`/academic/scripts/${scriptId}/answers`);
+  return response.data;
+}
+
+export async function startScriptMarking(scriptId: number): Promise<StudentScript> {
+  const response = await apiClient.post<StudentScript>(`/academic/scripts/${scriptId}/ai-mark`);
+  return response.data;
+}
+
+export async function reviewScriptAnswer(answerId: number, payload: { teacher_final_score: number; teacher_review_notes: string | null; extracted_text: string; review_status: "REVIEWED" }): Promise<StudentAnswer> {
+  const response = await apiClient.patch<StudentAnswer>(`/academic/answers/${answerId}/review`, payload);
+  return response.data;
+}
+
+export async function approveStudentScript(scriptId: number, assessmentTypeId: number): Promise<StudentScript> {
+  const response = await apiClient.post<StudentScript>(`/academic/scripts/${scriptId}/approve`, { confirm: true, assessment_type_id: assessmentTypeId });
+  return response.data;
+}
+
+export async function fetchQuestionReferences(questionId: number): Promise<ReferenceMaterial[]> {
+  const response = await apiClient.get<ReferenceMaterial[]>(`/academic/questions/${questionId}/references`);
+  return response.data;
+}
+
+export async function fetchReferenceFile(referenceId: number): Promise<Blob> {
+  const response = await apiClient.get<Blob>(`/academic/references/${referenceId}/file`, { responseType: "blob" });
+  return response.data;
+}
+
+export async function fetchScriptFile(scriptId: number): Promise<Blob> {
+  const response = await apiClient.get<Blob>(`/academic/scripts/${scriptId}/file`, { responseType: "blob" });
   return response.data;
 }

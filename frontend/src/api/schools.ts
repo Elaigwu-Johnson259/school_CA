@@ -17,6 +17,18 @@ export async function fetchMySchool(): Promise<School> {
   return response.data;
 }
 
+export async function fetchMySchoolLogo(): Promise<Blob> {
+  const response = await apiClient.get<Blob>("/schools/me/logo", { responseType: "blob" });
+  return response.data;
+}
+
+export async function uploadMySchoolLogo(file: File): Promise<School> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await apiClient.post<School>("/schools/me/logo", form);
+  return response.data;
+}
+
 /** SCHOOL_ADMIN only. Updates only the fields included in `updates`. */
 export async function updateMySchool(updates: SchoolUpdateRequest): Promise<School> {
   const response = await apiClient.patch<School>("/schools/me", updates);
